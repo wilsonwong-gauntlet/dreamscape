@@ -1,0 +1,109 @@
+root = "next_supabase"
+base_path = "."
+excludes = [
+  "node_modules/**",
+  ".next/**",
+  "build/**",
+  "dist/**",
+  "coverage/**",
+  ".turbo/**"
+]
+
+[nextjs]
+typescript = true
+app_router = true
+src_directory = false
+import_alias = "@/*"
+
+[nextjs.directories]
+app = "app"
+components = "components"
+lib = "lib"
+utils = "utils"
+public = "public"
+
+[nextjs.config_files]
+typescript = "tsconfig.json"
+eslint = ".eslintrc.json"
+tailwind = "tailwind.config.ts"
+postcss = "postcss.config.js"
+next = "next.config.ts"
+components = "components.json"
+middleware = "middleware.ts"
+
+[nextjs.conventions]
+import_alias = "@/*"
+page_extensions = [".tsx"]
+style_extensions = [".css"]
+
+[architecture]
+pattern = "Next.js App Router with Server Components"
+frontend_framework = "Next.js App Router"
+api_pattern = "Server Actions"
+auth_strategy = "Supabase Auth with Middleware"
+styling = "Tailwind CSS + shadcn/ui"
+
+[data_model]
+database = "PostgreSQL on Supabase"
+auth = "@supabase/ssr"
+client = "@supabase/supabase-js"
+
+[components]
+ui_framework = "shadcn/ui"
+radix_components = [
+  "@radix-ui/react-checkbox",
+  "@radix-ui/react-dropdown-menu",
+  "@radix-ui/react-label",
+  "@radix-ui/react-slot"
+]
+styling = [
+  "class-variance-authority",
+  "clsx",
+  "tailwind-merge"
+]
+
+[dependencies]
+next = "latest"
+react = "19.0.0"
+react_dom = "19.0.0"
+typescript = "5.7.2"
+tailwindcss = "3.4.17"
+postcss = "8.4.49"
+
+[development]
+prettier = "^3.3.3"
+tailwindcss_animate = "^1.0.7"
+next_themes = "^0.4.3"
+lucide_react = "^0.468.0"
+
+[requirements]
+project_type = "web_application"
+project_name = "Zendesk Clone"
+target_users = "Customer support teams"
+core_features = [
+  "Ticket management",
+  "Customer communication",
+  "Knowledge base",
+  "Analytics dashboard"
+]
+
+[performance]
+target_lighthouse_score = 95
+image_optimization = true
+code_splitting = true
+lazy_loading = true
+
+[testing]
+unit_test_framework = "Vitest"
+e2e_framework = "Playwright"
+coverage_threshold = 80
+
+[deployment]
+platform = "Vercel"
+ci_cd = "GitHub Actions"
+environment_strategy = "Development, Staging, Production"
+
+[documentation]
+api_docs = "OpenAPI/Swagger"
+component_docs = "Storybook"
+style_guide = "Tailwind CSS + shadcn/ui" 
