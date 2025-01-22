@@ -10,19 +10,18 @@ import Header from './Header'
 import { Loader2 } from 'lucide-react'
 import { Chat } from '@/components/chat/Chat'
 
-interface DashboardLayoutProps {
+interface AppLayoutProps {
   children: ReactNode
 }
 
 type UserRole = 'customer' | 'agent' | 'admin' | null
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function AppLayout({ children }: AppLayoutProps) {
   const [role, setRole] = useState<UserRole>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
     
-
   useEffect(() => {
     async function getUserRole() {
       try {
@@ -64,7 +63,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
 
     getUserRole()
-  }, [router])
+  }, [router, supabase])
 
   if (isLoading) {
     return (

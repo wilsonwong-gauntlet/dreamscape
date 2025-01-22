@@ -10,6 +10,7 @@ import {
   ChartBarIcon,
   QueueListIcon,
   BookOpenIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline'
 
 const navigation = [
@@ -18,6 +19,7 @@ const navigation = [
   { name: 'Queue', href: '/queue', icon: QueueListIcon },
   { name: 'Knowledge Base', href: '/knowledge', icon: BookOpenIcon },
   { name: 'Analytics', href: '/analytics', icon: ChartBarIcon },
+  { name: 'Team Invites', href: '/admin/invites', icon: EnvelopeIcon },
   { name: 'Settings', href: '/settings', icon: Cog6ToothIcon },
 ]
 
