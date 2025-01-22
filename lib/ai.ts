@@ -12,6 +12,12 @@ interface AIProcessingResult {
   suggestedTeamId?: string
 }
 
+interface AIAnalysisResponse {
+  canAutoResolve: boolean
+  confidence: number
+  suggestedTeamId?: string
+}
+
 export async function processTicketWithAI(ticket: Ticket): Promise<AIProcessingResult> {
   try {
     // 1. Analyze ticket content
@@ -36,7 +42,10 @@ export async function processTicketWithAI(ticket: Ticket): Promise<AIProcessingR
       response_format: { type: "json_object" }
     })
 
-    const result = JSON.parse(analysis.choices[0].message.content)
+    const content = analysis.choices[0].message.content
+    if (!content) throw new Error('No content in AI response')
+    
+    const result = JSON.parse(content) as AIAnalysisResponse
 
     // 2. If AI can resolve, generate response
     if (result.canAutoResolve) {
@@ -54,9 +63,12 @@ export async function processTicketWithAI(ticket: Ticket): Promise<AIProcessingR
         ]
       })
 
+      const responseContent = response.choices[0].message.content
+      if (!responseContent) throw new Error('No content in AI response')
+
       return {
         canAutoResolve: true,
-        response: response.choices[0].message.content,
+        response: responseContent,
         confidence: result.confidence
       }
     }
