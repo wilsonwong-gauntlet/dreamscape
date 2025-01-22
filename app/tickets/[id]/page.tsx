@@ -12,8 +12,8 @@ export default async function TicketDetailPage({
   const supabase = await createClient()
 
   // Get current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
-  if (userError || !user) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
     throw new Error('Not authenticated')
   }
 
@@ -23,7 +23,7 @@ export default async function TicketDetailPage({
     .select(`
       *,
       customer:customers(id, company),
-      assigned_agent:agents(id),
+      assigned_agent:agents(id, team_id, role),
       team:teams(id, name)
     `)
     .eq('id', params.id)
@@ -46,10 +46,10 @@ export default async function TicketDetailPage({
     // Don't throw here, just show empty responses
   }
 
-  // Fetch user details for response authors
+  // Get user details for response authors
   const authorIds = Array.from(new Set((responses || []).map(r => r.author_id)))
   const { data: authors } = await supabase
-    .from('users')
+    .from('auth.users')
     .select('id, email, raw_user_meta_data')
     .in('id', authorIds)
 
@@ -71,9 +71,28 @@ export default async function TicketDetailPage({
     // Don't throw here, just show empty history
   }
 
+  // Get assigned agent details if present
+  let assignedAgentDetails = null
+  if (ticket?.assigned_agent_id) {
+    const { data: agentUser } = await supabase
+      .from('auth.users')
+      .select('email, raw_user_meta_data')
+      .eq('id', ticket.assigned_agent_id)
+      .single()
+    
+    if (agentUser) {
+      assignedAgentDetails = {
+        ...ticket.assigned_agent,
+        email: agentUser.email,
+        name: agentUser.raw_user_meta_data?.name
+      }
+    }
+  }
+
   // Combine all the data
   const ticketData = {
     ...ticket,
+    assigned_agent: assignedAgentDetails,
     responses: responsesWithAuthors,
     history: history || [],
     tags: ticket.tags || []
@@ -124,32 +143,36 @@ export default async function TicketDetailPage({
       .eq('id', params.id)
   }
 
-  // Fetch available teams for assignment
+  // Fetch active agents
+  const { data: agents } = await supabase
+    .from('agents')
+    .select('*')
+    .eq('status', 'active')
+
+  // Fetch available teams
   const { data: teams } = await supabase
     .from('teams')
     .select('id, name')
     .order('name')
 
-  // Fetch available agents
-  const { data: agents } = await supabase
-    .from('agents')
-    .select(`
-      id,
-      team_id,
-      user:id(
-        email,
-        raw_user_meta_data
-      )
-    `)
-    .order('user(email)')
+  // Then fetch user details for those agents
+  const agentIds = agents?.map(agent => agent.id) || []
+  const { data: userDetails } = await supabase
+    .from('auth.users')
+    .select('id, email, raw_user_meta_data')
+    .in('id', agentIds)
 
-  // Transform agent data
-  const formattedAgents = agents?.map(agent => ({
-    id: agent.id,
-    name: agent.user?.raw_user_meta_data?.name,
-    email: agent.user?.email,
-    team_id: agent.team_id
-  })) || []
+  // Format agent data
+  const formattedAgents = agents?.map(agent => {
+    const userInfo = userDetails?.find(u => u.id === agent.id)
+    return {
+      id: agent.id,
+      name: userInfo?.raw_user_meta_data?.name,
+      email: userInfo?.email,
+      team_id: agent.team_id,
+      role: agent.role
+    }
+  }) || []
 
   return (
     <TicketDetail

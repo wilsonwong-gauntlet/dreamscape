@@ -528,3 +528,6 @@ Migration file names should use the current timestamp in the format YYYYMMDDHHMM
 
 [supabase auth]
 Use @supabase/ssr to set up Auth for your Next.js app. '@supabase/auth-helpers-nextjs' is deprecated. 
+
+[supabase user]
+"const { data: { user } } = await supabase.auth.getUser()""
