@@ -25,6 +25,7 @@ import TicketResponseList from "./TicketResponseList"
 import TicketResponseComposer from "./TicketResponseComposer"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
+import { TicketActions } from "@/components/tickets/TicketActions"
 
 interface Response {
   id: string
@@ -37,7 +38,11 @@ interface Response {
   created_at: string
   updated_at: string
   author?: {
+    id: string
     email: string
+    user_metadata: {
+      name?: string
+    }
   }
 }
 
@@ -53,14 +58,32 @@ interface TicketDetailProps {
     }[]
     responses: Response[]
   }
-  onStatusChange: (status: string) => void
-  onAssigneeChange: (agentId: string) => void
-  onTagsChange: (tags: string[]) => void
+  teams: {
+    id: string
+    name: string
+  }[]
+  agents: {
+    id: string
+    name?: string
+    email: string
+    team_id: string | null
+  }[]
+  currentUserId: string
+  onStatusChange: (status: string) => Promise<void>
+  onPriorityChange: (priority: string) => Promise<void>
+  onTeamChange: (teamId: string) => Promise<void>
+  onAssigneeChange: (agentId: string) => Promise<void>
+  onTagsChange: (tags: string[]) => Promise<void>
 }
 
 export default function TicketDetail({
   ticket,
+  teams,
+  agents,
+  currentUserId,
   onStatusChange,
+  onPriorityChange,
+  onTeamChange,
   onAssigneeChange,
   onTagsChange,
 }: TicketDetailProps) {
@@ -139,61 +162,24 @@ export default function TicketDetail({
         </DropdownMenu>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Status</CardTitle>
-            <CardDescription>Current ticket status</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Badge
-              variant="secondary"
-              className={statusColors[ticket.status as keyof typeof statusColors]}
-            >
-              {ticket.status}
-            </Badge>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Priority</CardTitle>
-            <CardDescription>Ticket priority level</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Badge
-              className={
-                priorityColors[ticket.priority as keyof typeof priorityColors]
-              }
-            >
-              {ticket.priority}
-            </Badge>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Assignment</CardTitle>
-            <CardDescription>Assigned team member</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {ticket.assigned_agent_id ? (
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                <span>{ticket.assigned_agent_id}</span>
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onAssigneeChange("current-user-id")}
-              >
-                Assign to me
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Actions</CardTitle>
+          <CardDescription>Manage ticket status and assignment</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <TicketActions
+            ticket={ticket}
+            teams={teams}
+            agents={agents}
+            currentUserId={currentUserId}
+            onStatusChange={onStatusChange}
+            onPriorityChange={onPriorityChange}
+            onTeamChange={onTeamChange}
+            onAssigneeChange={onAssigneeChange}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

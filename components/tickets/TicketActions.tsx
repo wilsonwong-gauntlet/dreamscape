@@ -24,7 +24,7 @@ interface Team {
 
 interface Agent {
   id: string
-  name: string
+  name?: string
   email: string
   team_id: string | null
 }
@@ -42,13 +42,21 @@ interface TicketActionsProps {
   teams?: Team[]
   agents?: Agent[]
   currentUserId?: string
+  onStatusChange: (status: TicketStatus) => Promise<void>
+  onPriorityChange?: (priority: TicketPriority) => Promise<void>
+  onTeamChange?: (teamId: string) => Promise<void>
+  onAssigneeChange: (agentId: string) => Promise<void>
 }
 
 export function TicketActions({ 
   ticket, 
   teams = [], 
   agents = [], 
-  currentUserId 
+  currentUserId,
+  onStatusChange,
+  onPriorityChange,
+  onTeamChange,
+  onAssigneeChange,
 }: TicketActionsProps) {
   const router = useRouter()
   const [isUpdating, setIsUpdating] = useState(false)
@@ -58,18 +66,7 @@ export function TicketActions({
     try {
       setIsUpdating(true)
       setUpdateType('status')
-      const response = await fetch(`/api/tickets/${ticket.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to update ticket status')
-      }
-
+      await onStatusChange(newStatus)
       toast.success('Ticket status updated')
       router.refresh()
     } catch (error) {
@@ -82,21 +79,12 @@ export function TicketActions({
   }
 
   const handlePriorityChange = async (newPriority: TicketPriority) => {
+    if (!onPriorityChange) return
+
     try {
       setIsUpdating(true)
       setUpdateType('priority')
-      const response = await fetch(`/api/tickets/${ticket.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ priority: newPriority }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to update ticket priority')
-      }
-
+      await onPriorityChange(newPriority)
       toast.success('Ticket priority updated')
       router.refresh()
     } catch (error) {
@@ -109,21 +97,12 @@ export function TicketActions({
   }
 
   const handleTeamAssignment = async (teamId: string) => {
+    if (!onTeamChange) return
+
     try {
       setIsUpdating(true)
       setUpdateType('team')
-      const response = await fetch(`/api/tickets/${ticket.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ team_id: teamId }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to update ticket team')
-      }
-
+      await onTeamChange(teamId)
       toast.success('Ticket assigned to team')
       router.refresh()
     } catch (error) {
@@ -139,18 +118,7 @@ export function TicketActions({
     try {
       setIsUpdating(true)
       setUpdateType('agent')
-      const response = await fetch(`/api/tickets/${ticket.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ assigned_agent_id: agentId }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to assign ticket to agent')
-      }
-
+      await onAssigneeChange(agentId)
       toast.success('Ticket assigned to agent')
       router.refresh()
     } catch (error) {
@@ -192,29 +160,31 @@ export function TicketActions({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" disabled={isUpdating}>
-            {updateType === 'priority' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Priority: {ticket.priority}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {(['low', 'medium', 'high', 'urgent'] as TicketPriority[]).map(
-            (priority) => (
-              <DropdownMenuItem
-                key={priority}
-                onClick={() => handlePriorityChange(priority)}
-                disabled={isUpdating}
-              >
-                {priority}
-              </DropdownMenuItem>
-            )
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {onPriorityChange && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" disabled={isUpdating}>
+              {updateType === 'priority' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Priority: {ticket.priority}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {(['low', 'medium', 'high', 'urgent'] as TicketPriority[]).map(
+              (priority) => (
+                <DropdownMenuItem
+                  key={priority}
+                  onClick={() => handlePriorityChange(priority)}
+                  disabled={isUpdating}
+                >
+                  {priority}
+                </DropdownMenuItem>
+              )
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
-      {teams.length > 0 && (
+      {teams.length > 0 && onTeamChange && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" disabled={isUpdating}>
@@ -249,9 +219,12 @@ export function TicketActions({
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Assign To</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {currentUserId && (
+            {currentUserId && !ticket.assigned_agent_id && (
               <>
-                <DropdownMenuItem onClick={handleAssignToMe} disabled={isUpdating}>
+                <DropdownMenuItem
+                  onClick={handleAssignToMe}
+                  disabled={isUpdating}
+                >
                   Assign to me
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -263,12 +236,7 @@ export function TicketActions({
                 onClick={() => handleAgentAssignment(agent.id)}
                 disabled={isUpdating}
               >
-                {agent.name} ({agent.email})
-                {agent.team_id && teams.find(t => t.id === agent.team_id) && (
-                  <span className="ml-2 text-muted-foreground">
-                    - {teams.find(t => t.id === agent.team_id)?.name}
-                  </span>
-                )}
+                {agent.name || agent.email}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

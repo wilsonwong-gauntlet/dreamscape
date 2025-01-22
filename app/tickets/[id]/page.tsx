@@ -106,10 +106,60 @@ export default async function TicketDetailPage({
       .eq('id', params.id)
   }
 
+  const handlePriorityChange = async (priority: string) => {
+    'use server'
+    const supabase = await createClient()
+    await supabase
+      .from('tickets')
+      .update({ priority })
+      .eq('id', params.id)
+  }
+
+  const handleTeamChange = async (teamId: string) => {
+    'use server'
+    const supabase = await createClient()
+    await supabase
+      .from('tickets')
+      .update({ team_id: teamId })
+      .eq('id', params.id)
+  }
+
+  // Fetch available teams for assignment
+  const { data: teams } = await supabase
+    .from('teams')
+    .select('id, name')
+    .order('name')
+
+  // Fetch available agents
+  const { data: agents } = await supabase
+    .from('agents')
+    .select(`
+      id,
+      team_id,
+      user:id(
+        email,
+        raw_user_meta_data
+      )
+    `)
+    .order('user(email)')
+
+  // Transform agent data
+  const formattedAgents = agents?.map(agent => ({
+    id: agent.id,
+    name: agent.user?.raw_user_meta_data?.name,
+    email: agent.user?.email,
+    team_id: agent.team_id
+  })) || []
+
   return (
     <TicketDetail
       ticket={ticketData}
+      teams={teams || []}
+      agents={formattedAgents}
+      currentUserId={user.id}
       onStatusChange={handleStatusChange}
+      onPriorityChange={handlePriorityChange}
+      onTeamChange={handleTeamChange}
       onAssigneeChange={handleAssigneeChange}
       onTagsChange={handleTagsChange}
     />
