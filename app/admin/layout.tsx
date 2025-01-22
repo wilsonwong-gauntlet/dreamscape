@@ -1,6 +1,6 @@
 import DashboardLayout from '@/components/layout/DashboardLayout'
 
-export default function AuthenticatedLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
