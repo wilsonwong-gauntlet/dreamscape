@@ -1,4 +1,4 @@
-root = "next_supabase"
+root = "dreamscape"
 base_path = "."
 excludes = [
   "node_modules/**",
@@ -35,75 +35,496 @@ middleware = "middleware.ts"
 import_alias = "@/*"
 page_extensions = [".tsx"]
 style_extensions = [".css"]
+# AutoCRM System Specification
 
-[architecture]
-pattern = "Next.js App Router with Server Components"
-frontend_framework = "Next.js App Router"
-api_pattern = "Server Actions"
-auth_strategy = "Supabase Auth with Middleware"
-styling = "Tailwind CSS + shadcn/ui"
+## Core Architecture
 
-[data_model]
-database = "PostgreSQL on Supabase"
-auth = "@supabase/ssr"
-client = "@supabase/supabase-js"
+### Ticket System
 
-[components]
-ui_framework = "shadcn/ui"
-radix_components = [
-  "@radix-ui/react-checkbox",
-  "@radix-ui/react-dropdown-menu",
-  "@radix-ui/react-label",
-  "@radix-ui/react-slot"
-]
-styling = [
-  "class-variance-authority",
-  "clsx",
-  "tailwind-merge"
-]
+data_model:
+  core_fields:
+  - ticket ID
+  - creation date
+  - status updates
+  metadata_fields:
+  - Dynamic Status Tracking
+  - Priority Levels
+  - Custom Fields
+  - Tags
+  - Internal Notes
+  - Full Conversation History
+  relationships:
+  - Tickets-Users
+  - Tickets-Teams
+  - Tickets-Agents
+  - Tickets-External tools
+integration_points:
+  external:
+  - API-First Design
+  - Integration with external tools
+  - Webhooks
+  - Granular Permissions
+  internal:
+  - Knowledge Base
+  - Chatbots
+  - Live Chat
+  - Email Integration
+  - Web Widgets
+  - Mobile Application
+  - Omnichannel Integration
+workflows:
+  priority_management:
+  - Ticket categorization
+  - Priority assignment
+  - Load balancing
+  status_transitions:
+  - Ticket creation
+  - Ticket escalation
+  - Ticket resolution
+  ticket_lifecycle:
+  - Ticket creation
+  - Ticket assignment
+  - Ticket handling
+  - Ticket resolution
+  - Feedback collection
 
-[dependencies]
-next = "latest"
-react = "19.0.0"
-react_dom = "19.0.0"
-typescript = "5.7.2"
-tailwindcss = "3.4.17"
-postcss = "8.4.49"
+### Api Design
 
-[development]
-prettier = "^3.3.3"
-tailwindcss_animate = "^1.0.7"
-next_themes = "^0.4.3"
-lucide_react = "^0.468.0"
+authentication:
+  methods:
+  - API key
+  permissions:
+  - create_ticket
+  - view_ticket
+  - update_ticket
+  - generate_response
+  roles:
+  - customer
+  - agent
+  - admin
+endpoints:
+- auth_requirements:
+  - customer
+  - agent
+  - admin
+  method: POST
+  path: /tickets
+  purpose: Creates a new ticket
+  request_body:
+    customerID: ''
+    issue: ''
+    priority: ''
+  response:
+    status: ''
+    ticketID: ''
+- auth_requirements:
+  - customer
+  - agent
+  - admin
+  method: GET
+  path: /tickets/{ticketID}
+  purpose: Fetches a specific ticket
+  request_body: {}
+  response:
+    customerID: ''
+    issue: ''
+    priority: ''
+    status: ''
+    ticketID: ''
+- auth_requirements:
+  - agent
+  - admin
+  method: PUT
+  path: /tickets/{ticketID}
+  purpose: Updates a specific ticket
+  request_body:
+    agentID: ''
+    status: ''
+  response:
+    status: ''
+    ticketID: ''
+- auth_requirements:
+  - agent
+  - admin
+  method: POST
+  path: /tickets/{ticketID}/responses
+  purpose: Generates a response for a specific ticket using LLM
+  request_body: {}
+  response:
+    response: ''
+webhooks:
+- event: ticket_created
+  payload:
+    properties:
+      customerID: ''
+      issue: ''
+      priority: ''
+      ticketID: ''
+    type: object
+  subscribers:
+  - AI processing service
+  - Notification service
+- event: ticket_updated
+  payload:
+    properties:
+      agentID: ''
+      status: ''
+      ticketID: ''
+    type: object
+  subscribers:
+  - AI processing service
+  - Notification service
 
-[requirements]
-project_type = "web_application"
-project_name = "Zendesk Clone"
-target_users = "Customer support teams"
-core_features = [
-  "Ticket management",
-  "Customer communication",
-  "Knowledge base",
-  "Analytics dashboard"
-]
+### Data Management
 
-[performance]
-target_lighthouse_score = 95
-image_optimization = true
-code_splitting = true
-lazy_loading = true
+{}
 
-[testing]
-unit_test_framework = "Vitest"
-e2e_framework = "Playwright"
-coverage_threshold = 80
+## AI Features
 
-[deployment]
-platform = "Vercel"
-ci_cd = "GitHub Actions"
-environment_strategy = "Development, Staging, Production"
+### Baseline
 
-[documentation]
-api_docs = "OpenAPI/Swagger"
-component_docs = "Storybook"
-style_guide = "Tailwind CSS + shadcn/ui" 
+llm_responses:
+  features:
+  - Generate user-friendly responses
+  - Prepopulate responses for human agents
+  implementation:
+  - Use LangChain for language generation
+  - Integrate with ticketing system for context
+  models:
+  - OpenAI's GPT-3 or similar
+rag_system:
+  data_sources:
+  - Existing FAQs and help articles
+  - Customer interaction logs
+  features:
+  - Retrieve necessary knowledge for responses
+  - Allow administrators to add or update knowledge sources
+  implementation:
+  - Use OpenAI's RAG for information retrieval
+  - Design a user interface for knowledge base updates
+routing:
+  criteria:
+  - Ticket type
+  - Priority level
+  - Customer history
+  features:
+  - Analyze and route tickets by type, priority, etc.
+  - Interact with external APIs
+  implementation:
+  - Use OpenAI's DAVINCI for ticket analysis
+  - Develop API integrations for relevant external services
+
+### Advanced
+
+ai_summarized_status:
+  data_sources:
+  - System performance data
+  - Ticket status data
+  features:
+  - Dynamically updated dashboard
+  - AI-generated summaries
+  - Interactive Q&A
+  implementation:
+  - Design a dashboard interface
+  - Use LangChain for summary generation and Q&A
+human_in_loop:
+  features:
+  - Streamlined queue for human review
+  - Seamless integration of human oversight
+  implementation:
+  - Design a user interface for human review
+  - Integrate human review process with AI workflows
+  integration:
+  - Ticketing system
+  - AI workflows
+learning_system:
+  features:
+  - Log outcomes when human intervention is required
+  - Use data to improve AI
+  feedback_loops:
+  - Human intervention logs
+  - AI performance data
+  implementation:
+  - Design a logging system
+  - Use LangChain for AI learning and improvement
+multi_channel:
+  channels:
+  - Phone
+  - Chat
+  - Email
+  features:
+  - Support across phone, chat, email
+  - Incorporate audio and visual elements
+  implementation:
+  - Design multi-modal interfaces
+  - Integrate with existing communication channels
+self_service:
+  features:
+  - Automate end-to-end ticket resolution
+  - Establish clear workflows for escalation
+  implementation:
+  - Use LangChain for interactive AI-guided resolution
+  - Integrate with ticketing system for context
+  workflows:
+  - Automated ticket resolution
+  - Escalation to human agents
+
+## Technical Implementation
+
+### Supabase
+
+auth_implementation:
+- Implement user authentication for customers and employees
+- Ensure secure login for customers
+- Implement granular permissions using API key authentication for secure integrations
+database_schema:
+- Create tables for tickets, customers, employees, teams, and ticket history
+- Design relationships between tables
+- Implement custom fields and tags for tickets
+- Ensure audit logging for tracking all changes
+- Implement archival strategies for managing historical data
+- Prepare for scalable storage to handle attachments and large datasets
+edge_functions:
+- Enable automatic ticket routing based on type, priority, or other criteria
+- Implement load balancing to optimize workload distribution across teams and time
+  zones
+realtime_features:
+- Enable real-time updates in ticket status
+- Ensure real-time communication between customers and support team
+- Create real-time dashboard for admins with AI-generated summaries of system performance
+  and ticket status
+
+### Langchain
+
+agents:
+- Design AI agent to generate responses for customer tickets
+- Implement human-assisted suggestions for speeding up resolution
+- Enable AI agent to interact with external APIs for better interoperability
+chains:
+- Implement RAG-based knowledge management system
+- Ensure the RAG system is extensible, allowing administrators to add or update knowledge
+  sources
+memory_implementation:
+- Log and save outcomes when tickets require human intervention
+- "Use logged data to improve the AI\u2019s ability to handle similar cases in the\
+  \ future automatically"
+tool_integration:
+- Integrate AI with ticket management system
+- Enable AI to manage end-to-end ticket resolution
+- Establish clear workflows for escalation and routing to human agents when necessary
+
+### Openai
+
+ai_features:
+- Implement LLM for generating responses
+- Use RAG system for providing LLM with relevant context
+- Enable AI to analyze and route incoming tickets
+- Provide admins with AI-generated summaries of system performance and ticket status
+learning_systems:
+- "Use logged data to improve the AI\u2019s ability to handle similar cases in the\
+  \ future automatically"
+
+### Nextjs
+
+api_routes:
+- Create API endpoints for handling immediate operations and event-driven architectures
+- Ensure secure integrations using API key authentication
+components:
+- Create components for ticket tracking, history of interactions, knowledge base,
+  AI-powered chatbots, interactive tutorials, issue feedback, ratings system, and
+  multilingual support
+- Design components for queue management, ticket handling, metrics tracking, template
+  management, personal stats, team management, rule-based assignment, skills-based
+  routing, and load balancing
+pages:
+- Design pages for customer portal, employee interface, and admin control
+- Implement live chat, email integration, and web widgets for support tools
+state_management:
+- Manage state for real-time updates in ticket status
+- Handle state for real-time communication between customers and support team
+- Manage state for real-time dashboard for admins with AI-generated summaries of system
+  performance and ticket status
+
+## Implementation Plan
+
+### Week1
+
+deliverables:
+- A modern customer support system with a comprehensive ticket data model, API-first
+  design, employee interface, administrative control, customer features, and optimized
+  data management and performance
+goals:
+- Create a modern customer support system
+- Build the core architecture
+- Develop an efficient employee interface
+- Set up administrative control
+- Provide customer features
+- Ensure data and performance optimization
+tasks:
+- dependencies: []
+  description: Design a comprehensive and flexible ticket system capturing all customer
+    interactions.
+  name: Develop Ticket Data Model
+  priority: High
+- dependencies:
+  - Develop Ticket Data Model
+  description: Set up APIs for integration, automation, AI enhancements, and analytics.
+  name: Implement API-First Design
+  priority: High
+- dependencies:
+  - Develop Ticket Data Model
+  - Implement API-First Design
+  description: Design interfaces for queue management, ticket handling, performance
+    tools, and team management.
+  name: Develop Employee Interface
+  priority: High
+- dependencies:
+  - Develop Employee Interface
+  description: Create functionalities for team management, routing intelligence, and
+    data management.
+  name: Implement Administrative Control
+  priority: Medium
+- dependencies:
+  - Implement API-First Design
+  description: Set up customer portal, self-service tools, communication tools, feedback
+    and engagement system, and multi-channel support.
+  name: Develop Customer Features
+  priority: Medium
+- dependencies:
+  - Develop Ticket Data Model
+  - Implement API-First Design
+  description: Implement caching, query optimization, scalable storage, and regular
+    maintenance.
+  name: Optimize Data Management and Performance
+  priority: Medium
+testing_criteria:
+- The system should be able to handle tickets efficiently
+- The APIs should integrate well with other systems
+- The employee interface should be user-friendly
+- The administrative controls should work effectively
+- The customer features should function as expected
+- The data management and performance should be optimized
+
+### Week2
+
+deliverables:
+- An AI-integrated customer service system with baseline AI functionality and advanced
+  AI features
+- A learning and growth system for future AI improvements
+goals:
+- Integrate AI to enhance ticket management
+- Develop baseline AI functionality
+- Build advanced AI features
+- Create a learning and growth system
+tasks:
+- dependencies: []
+  description: Integrate AI to generate responses for customer tickets.
+  name: Implement LLM-Generated Responses
+  priority: High
+- dependencies:
+  - Implement LLM-Generated Responses
+  description: When human action is required, the AI should suggest or prepopulate
+    a response.
+  name: Develop Human-Assisted Suggestions
+  priority: High
+- dependencies:
+  - Implement LLM-Generated Responses
+  description: Provide the AI with relevant context to ensure factual responses by
+    using a Retrieval-Augmented Generation system.
+  name: Set up RAG-Based Knowledge Management
+  priority: Medium
+- dependencies:
+  - Set up RAG-Based Knowledge Management
+  description: Design AI to analyze and route incoming tickets by type, priority,
+    or other criteria.
+  name: Develop Agentic Tool-Using AI
+  priority: Medium
+- dependencies:
+  - Develop Agentic Tool-Using AI
+  description: Automate the entire support experience with AI managing end-to-end
+    ticket resolution.
+  name: Create Refined Self-Service Support
+  priority: Medium
+- dependencies:
+  - Create Refined Self-Service Support
+  description: Create a streamlined queue and user experience for human review.
+  name: Implement Human-in-the-Loop Enhancements
+  priority: Medium
+- dependencies:
+  - Implement Human-in-the-Loop Enhancements
+  description: Allow users to request and receive support across multiple channels.
+  name: Develop Multi-Channel and Multi-Modality Support
+  priority: Medium
+- dependencies:
+  - Develop Multi-Channel and Multi-Modality Support
+  description: Provide admins with a dynamically updated dashboard view and AI-generated
+    summaries.
+  name: Set up AI-Summarized Ticket and System Status
+  priority: Low
+- dependencies:
+  - Set up AI-Summarized Ticket and System Status
+  description: Log and save outcomes when tickets require human intervention for future
+    AI improvements.
+  name: Create Learning and Growth System
+  priority: Low
+testing_criteria:
+- The AI should be able to generate responses and suggest solutions
+- The AI should be able to handle most tickets
+- The AI should be able to learn and grow from past experiences
+- The system should work seamlessly with AI and human interaction
+
+
+
+Customer Entry Points:
+
+Multiple channels (web, email, chat, phone, social media)
+All requests flow through the API Gateway
+Authentication system ensures secure access
+
+
+AI Processing Layer:
+
+LLM Engine: Core AI processing unit
+RAG System: Retrieves relevant knowledge
+Ticket Router: Determines ticket priority and routing
+Response Generator: Creates AI responses
+Analytics: Processes system performance and learns from interactions
+
+
+Knowledge Base:
+
+Contains FAQs, help articles, templates
+Stores historical data for learning
+Continuously updated through system usage
+
+
+Human Interface:
+
+Support Agents: Handle complex cases
+Administrators: Oversee system operation
+Queue Management: Prioritizes tickets needing human attention
+
+
+Core System:
+
+Ticket Database: Central storage
+API Gateway: Manages all communications
+Authentication: Handles security
+
+
+
+Key Workflows:
+
+Customer submits ticket → API processes → AI attempts resolution
+If AI can resolve → Customer gets response
+If AI cannot resolve → Routed to human queue
+Agents handle complex cases → Outcomes feed back to AI
+Admins monitor system and update knowledge base
+Analytics continuously improve system performance
+
+
+[migration]
+Migration file names should use the current timestamp in the format YYYYMMDDHHMMSS
+
+[supabase auth]
+Use @supabase/ssr to set up Auth for your Next.js app. '@supabase/auth-helpers-nextjs' is deprecated. 
