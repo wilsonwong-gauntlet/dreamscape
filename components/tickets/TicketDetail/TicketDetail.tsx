@@ -18,23 +18,38 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
-import { MoreHorizontal, Clock, User } from "lucide-react"
+import { MoreHorizontal, Clock, User, Tag, History } from "lucide-react"
 import { formatDistanceToNow, format } from "date-fns"
 import type { Ticket } from "@/types/database"
 import TicketResponseList from "./TicketResponseList"
 import TicketResponseComposer from "./TicketResponseComposer"
+import { Input } from "@/components/ui/input"
+import { useState } from "react"
 
 interface TicketDetailProps {
-  ticket: Ticket
+  ticket: Ticket & {
+    tags: string[]
+    history: {
+      id: string
+      action: string
+      actor: string
+      timestamp: string
+      details?: string
+    }[]
+  }
   onStatusChange: (status: string) => void
   onAssigneeChange: (agentId: string) => void
+  onTagsChange: (tags: string[]) => void
 }
 
 export default function TicketDetail({
   ticket,
   onStatusChange,
   onAssigneeChange,
+  onTagsChange,
 }: TicketDetailProps) {
+  const [newTag, setNewTag] = useState("")
+  
   const statusColors = {
     new: "bg-blue-500",
     open: "bg-yellow-500",
@@ -48,6 +63,19 @@ export default function TicketDetail({
     medium: "bg-yellow-100 text-yellow-800",
     high: "bg-red-100 text-red-800",
     urgent: "bg-red-500 text-white",
+  }
+
+  const handleAddTag = () => {
+    if (newTag.trim() && !ticket.tags.includes(newTag.trim())) {
+      const updatedTags = [...ticket.tags, newTag.trim()]
+      onTagsChange(updatedTags)
+      setNewTag("")
+    }
+  }
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    const updatedTags = ticket.tags.filter(tag => tag !== tagToRemove)
+    onTagsChange(updatedTags)
   }
 
   return (
@@ -147,6 +175,41 @@ export default function TicketDetail({
 
       <Card>
         <CardHeader>
+          <CardTitle>Tags</CardTitle>
+          <CardDescription>Manage ticket tags</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {ticket.tags.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant="secondary"
+                  className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={() => handleRemoveTag(tag)}
+                >
+                  <Tag className="h-3 w-3 mr-1" />
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Add new tag..."
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && handleAddTag()}
+              />
+              <Button onClick={handleAddTag} disabled={!newTag.trim()}>
+                Add Tag
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Description</CardTitle>
           <CardDescription>
             Submitted on {format(new Date(ticket.created_at), "PPP")}
@@ -154,6 +217,36 @@ export default function TicketDetail({
         </CardHeader>
         <CardContent>
           <p className="whitespace-pre-wrap">{ticket.description}</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>History</CardTitle>
+          <CardDescription>Ticket activity log</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {ticket.history.map((event) => (
+              <div key={event.id} className="flex items-start gap-3 text-sm">
+                <History className="h-4 w-4 mt-1 text-muted-foreground" />
+                <div className="flex-1">
+                  <p>
+                    <span className="font-medium">{event.actor}</span>{" "}
+                    {event.action}
+                  </p>
+                  {event.details && (
+                    <p className="text-muted-foreground">{event.details}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(event.timestamp), {
+                      addSuffix: true,
+                    })}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 

@@ -24,7 +24,8 @@
     "openai": "^4.79.4",
     "prettier": "^3.3.3",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "sonner": "^1.7.2"
   },
   "devDependencies": {
     "@types/node": "22.10.2",

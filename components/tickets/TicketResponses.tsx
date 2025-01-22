@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { useRouter } from 'next/navigation'
+import { Loader2, Bot, Send } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface Response {
   id: string
@@ -28,34 +30,77 @@ export function TicketResponses({ ticketId, responses }: TicketResponsesProps) {
   const [newResponse, setNewResponse] = useState('')
   const [isInternal, setIsInternal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
 
   const handleSubmit = async () => {
     if (!newResponse.trim()) return
 
     try {
       setIsSubmitting(true)
+      
+      // Match the actual database columns
+      const payload = {
+        content: newResponse.trim(),
+        is_internal: isInternal,  // Changed back to is_internal
+        type: 'human'
+      }
+
       const response = await fetch(`/api/tickets/${ticketId}/responses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          content: newResponse,
-          is_internal: isInternal,
-          type: 'human',
-        }),
+        body: JSON.stringify(payload)
       })
 
+      // Get the response text first to see what's actually being returned
+      const responseText = await response.text()
+      console.log('Response:', responseText) // Log the full response for debugging
+      
       if (!response.ok) {
-        throw new Error('Failed to add response')
+        // Try to parse as JSON if possible
+        let errorMessage = 'Failed to add response'
+        try {
+          const errorData = JSON.parse(responseText)
+          errorMessage = errorData.error || errorMessage
+        } catch (e) {
+          // If it's not JSON, use the text directly
+          errorMessage = responseText
+        }
+        
+        throw new Error(errorMessage)
       }
 
       setNewResponse('')
+      toast.success('Response added successfully')
       router.refresh()
     } catch (error) {
       console.error('Error adding response:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to add response')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const generateAIResponse = async () => {
+    try {
+      setIsGeneratingAI(true)
+      const response = await fetch(`/api/tickets/${ticketId}/ai-response`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate AI response')
+      }
+
+      const data = await response.json()
+      setNewResponse(data.response)
+      toast.success('AI response generated')
+    } catch (error) {
+      console.error('Error generating AI response:', error)
+      toast.error('Failed to generate AI response')
+    } finally {
+      setIsGeneratingAI(false)
     }
   }
 
@@ -80,7 +125,10 @@ export function TicketResponses({ ticketId, responses }: TicketResponsesProps) {
                   <Badge variant="secondary">Internal</Badge>
                 )}
                 {response.type === 'ai' && (
-                  <Badge variant="outline">AI Generated</Badge>
+                  <Badge variant="outline" className="gap-1">
+                    <Bot className="h-3 w-3" />
+                    AI Generated
+                  </Badge>
                 )}
               </div>
               <p className="whitespace-pre-wrap">{response.content}</p>
@@ -98,12 +146,20 @@ export function TicketResponses({ ticketId, responses }: TicketResponsesProps) {
             onChange={(e) => setNewResponse(e.target.value)}
             rows={4}
           />
-          <div className="flex items-center gap-4">
+
+          <div className="flex items-center gap-2">
             <Button
               onClick={handleSubmit}
               disabled={isSubmitting || !newResponse.trim()}
             >
-              {isSubmitting ? 'Sending...' : 'Send Response'}
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              <span className="ml-2">
+                {isSubmitting ? 'Sending...' : 'Send Response'}
+              </span>
             </Button>
             <Button
               variant="outline"
@@ -111,6 +167,20 @@ export function TicketResponses({ ticketId, responses }: TicketResponsesProps) {
               disabled={isSubmitting}
             >
               {isInternal ? 'Internal Note' : 'Public Response'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={generateAIResponse}
+              disabled={isGeneratingAI || isSubmitting}
+            >
+              {isGeneratingAI ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Bot className="h-4 w-4" />
+              )}
+              <span className="ml-2">
+                {isGeneratingAI ? 'Generating...' : 'Generate AI Response'}
+              </span>
             </Button>
           </div>
         </div>

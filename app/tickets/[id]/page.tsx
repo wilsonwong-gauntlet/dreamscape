@@ -54,6 +54,42 @@ export default async function TicketDetailPage({
     .select('id, name')
     .order('name')
 
+  interface AgentUser {
+    id: string
+    email: string
+    user_metadata: {
+      name?: string
+    }
+  }
+
+  interface AgentData {
+    id: string
+    team_id: string | null
+    user: AgentUser
+  }
+
+  // Fetch available agents for assignment
+  const { data: agents } = await supabase
+    .from('agents')
+    .select(`
+      id,
+      team_id,
+      user:users (
+        id,
+        email,
+        user_metadata
+      )
+    `)
+    .order('user(email)') as { data: AgentData[] | null }
+
+  // Transform agent data to match the expected format
+  const formattedAgents = agents?.map(agent => ({
+    id: agent.id,
+    name: agent.user.user_metadata?.name || agent.user.email,
+    email: agent.user.email,
+    team_id: agent.team_id
+  })) || []
+
   return (
     <div className="container mx-auto py-10">
       <div className="space-y-6">
@@ -94,7 +130,12 @@ export default async function TicketDetailPage({
               </span>
             </div>
           </div>
-          <TicketActions ticket={ticket} teams={teams || []} />
+          <TicketActions 
+            ticket={ticket} 
+            teams={teams || []} 
+            agents={formattedAgents}
+            currentUserId={user.id}
+          />
         </div>
 
         {/* Content */}
