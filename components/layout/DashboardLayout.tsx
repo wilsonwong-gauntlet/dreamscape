@@ -8,6 +8,7 @@ import AgentNav from './nav/AgentNav'
 import AdminNav from './nav/AdminNav'
 import Header from './Header'
 import { Loader2 } from 'lucide-react'
+import { Chat } from '@/components/chat/Chat'
 
 interface DashboardLayoutProps {
   children: ReactNode
@@ -20,6 +21,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
+    
 
   useEffect(() => {
     async function getUserRole() {
@@ -36,7 +38,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           .from('agents')
           .select('role')
           .eq('id', user.id)
-          .single()
+          .maybeSingle()
 
         if (agent) {
           setRole(agent.role as UserRole)
@@ -48,56 +50,46 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           .from('customers')
           .select()
           .eq('id', user.id)
-          .single()
+          .maybeSingle()
 
         if (customer) {
           setRole('customer')
-          setIsLoading(false)
-          return
         }
 
-        // If no role found, redirect to login
-        router.push('/auth/login')
+        setIsLoading(false)
       } catch (error) {
         console.error('Error getting user role:', error)
-        router.push('/auth/login')
-      } finally {
         setIsLoading(false)
       }
     }
 
     getUserRole()
-  }, [router, supabase])
+  }, [router])
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
   }
 
-  if (!role) {
-    return null
-  }
-
-  const NavComponent = {
-    customer: CustomerNav,
-    agent: AgentNav,
-    admin: AdminNav
-  }[role]
+  if (!role) return null
 
   return (
-    <div className="min-h-screen bg-background">
-      <NavComponent />
-      <div className="lg:pl-72">
+    <div className="flex h-screen bg-background">
+      <nav className="w-64 border-r bg-muted/40">
+        {role === 'customer' && <CustomerNav />}
+        {role === 'agent' && <AgentNav />}
+        {role === 'admin' && <AdminNav />}
+      </nav>
+      <main className="flex-1">
         <Header />
-        <main className="py-10">
-          <div className="px-4 sm:px-6 lg:px-8">
-            {children}
-          </div>
-        </main>
-      </div>
+        <div className="container mx-auto py-6">
+          {children}
+        </div>
+        {role === 'customer' && <Chat />}
+      </main>
     </div>
   )
 } 
