@@ -78,37 +78,62 @@ export function ChatWindow({ isOpen, className }: ChatWindowProps) {
     setIsLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        console.error('No authenticated user')
+        return
+      }
+
+      // Verify user is a customer
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('id', user.id)
+        .single()
+
+      if (!customer) {
+        console.error('Not a customer')
+        return
+      }
 
       // Check for existing active session
-      const { data: existingSession } = await supabase
+      const { data: existingSession, error: sessionError } = await supabase
         .from('chat_sessions')
         .select()
         .eq('user_id', user.id)
         .eq('status', 'active')
         .maybeSingle()
 
+      if (sessionError) {
+        console.error('Error checking existing session:', sessionError)
+        return
+      }
+
       if (existingSession) {
+        console.log('Found existing session:', existingSession.id)
         setSession(existingSession)
         await loadMessages(existingSession.id)
         return
       }
 
-      // Create a new chat session if none exists
-      const { data: sessionData, error: sessionError } = await supabase
+      // Create a new chat session
+      const { data: newSession, error: createError } = await supabase
         .from('chat_sessions')
         .insert([
-          { user_id: user.id }
+          { 
+            user_id: user.id,
+            status: 'active'
+          }
         ])
         .select()
         .single()
 
-      if (sessionError) {
-        console.error('Error creating chat session:', sessionError)
+      if (createError) {
+        console.error('Error creating chat session:', createError)
         return
       }
 
-      setSession(sessionData)
+      console.log('Created new session:', newSession.id)
+      setSession(newSession)
     } catch (error) {
       console.error('Error initializing chat:', error)
     } finally {

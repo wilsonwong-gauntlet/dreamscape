@@ -5,7 +5,7 @@ export interface ChatSession {
   created_at: string
   ended_at: string | null
   metadata: Record<string, any>
-  customers?: {
+  user?: {
     id: string
     email: string
   }

@@ -36,28 +36,71 @@ export function ChatList() {
   }, [])
 
   const loadActiveSessions = async () => {
-    const { data } = await supabase
-      .from('chat_sessions')
-      .select(`
-        *,
-        customers:user_id (
-          id,
-          email
-        ),
-        chat_messages (
-          id,
-          content,
-          sender_type,
-          created_at
-        )
-      `)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
+    try {
+      // First verify the user is an agent
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.error('No authenticated user')
+        return
+      }
 
-    if (data) {
-      setSessions(data)
+      const { data: agent } = await supabase
+        .from('agents')
+        .select('id, role')
+        .eq('id', user.id)
+        .single()
+
+      if (!agent) {
+        console.error('Not an agent')
+        return
+      }
+
+      // Then load active sessions
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('chat_sessions')
+        .select(`
+          id,
+          user_id,
+          status,
+          created_at,
+          ended_at,
+          metadata,
+          chat_messages (
+            id,
+            session_id,
+            sender_id,
+            sender_type,
+            content,
+            created_at,
+            read_at,
+            metadata
+          )
+        `)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+
+      if (sessionsError) {
+        console.error('Error loading sessions:', sessionsError)
+        return
+      }
+
+      if (!sessions) {
+        setSessions([])
+        return
+      }
+
+      // For now, just use the user_id as we can't get email from client side
+      const sessionsWithUsers = sessions.map(session => ({
+        ...session,
+        user: { id: session.user_id, email: session.user_id }
+      })) as ChatSession[]
+
+      setSessions(sessionsWithUsers)
+    } catch (error) {
+      console.error('Error:', error)
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   const sendResponse = async (sessionId: string) => {
@@ -77,6 +120,8 @@ export function ChatList() {
 
       setResponse('')
       setSelectedSession(null)
+      // Reload sessions to get the latest messages
+      loadActiveSessions()
     } catch (error) {
       console.error('Error sending response:', error)
     } finally {
@@ -105,12 +150,12 @@ export function ChatList() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-medium">
-                    {session.customers?.email}
+                    {session.user?.email}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Started {format(new Date(session.created_at), 'PP p')}
                   </p>
-                  {session.chat_messages?.length > 0 && (
+                  {session.chat_messages && session.chat_messages.length > 0 && (
                     <p className="mt-2 text-sm">
                       Latest: {session.chat_messages[session.chat_messages.length - 1].content}
                     </p>
