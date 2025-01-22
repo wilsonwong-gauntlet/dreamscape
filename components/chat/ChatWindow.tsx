@@ -158,8 +158,68 @@ export function ChatWindow({ isOpen, className }: ChatWindowProps) {
       'fixed bottom-20 right-4 w-80 h-[32rem] flex flex-col shadow-xl bg-background',
       className
     )}>
-      <div className="p-3 border-b bg-muted/40">
+      <div className="p-3 border-b bg-muted/40 flex items-center justify-between">
         <h3 className="font-semibold">Support Chat</h3>
+        {messages.length > 0 && (
+          <button
+            onClick={async () => {
+              if (!session) return
+              
+              try {
+                // Create a ticket from the chat
+                const { data: ticket, error: ticketError } = await supabase
+                  .from('tickets')
+                  .insert([{
+                    customer_id: session.user_id,
+                    title: 'Chat Conversation',
+                    description: 'Converted from chat session',
+                    source: 'chat',
+                    status: 'new',
+                    priority: 'medium',
+                    metadata: {
+                      chat_session_id: session.id
+                    }
+                  }])
+                  .select()
+                  .single()
+
+                if (ticketError) throw ticketError
+
+                // Add chat transcript as first response
+                const transcript = messages.map(m => 
+                  `${m.sender_type}: ${m.content}`
+                ).join('\n')
+
+                await supabase
+                  .from('ticket_responses')
+                  .insert([{
+                    ticket_id: ticket.id,
+                    author_id: session.user_id,
+                    content: transcript,
+                    type: 'human',
+                    is_internal: true,
+                    metadata: {
+                      source: 'chat_transcript'
+                    }
+                  }])
+
+                // End chat session
+                await supabase
+                  .from('chat_sessions')
+                  .update({ status: 'ended' })
+                  .eq('id', session.id)
+
+                // Redirect to ticket
+                window.location.href = `/tickets/${ticket.id}`
+              } catch (error) {
+                console.error('Error converting to ticket:', error)
+              }
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Convert to Ticket
+          </button>
+        )}
       </div>
 
       <div 
