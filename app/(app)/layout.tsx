@@ -14,5 +14,26 @@ export default async function ProtectedLayout({
     redirect('/auth/login')
   }
 
-  return <AppLayout>{children}</AppLayout>
+  // Get user role from profiles
+  const { data: agent } = await supabase
+    .from('agents')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (agent) {
+    return <AppLayout role={agent.role}>{children}</AppLayout>
+  }
+
+  const { data: customer } = await supabase
+    .from('customers')
+    .select()
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (!customer) {
+    redirect('/auth/login')
+  }
+
+  return <AppLayout role="customer">{children}</AppLayout>
 } 
