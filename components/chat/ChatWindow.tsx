@@ -31,29 +31,39 @@ export function ChatWindow({ isOpen, className }: ChatWindowProps) {
   // Subscribe to new messages
   useEffect(() => {
     if (session?.id) {
-      const channel = supabase
-        .channel(`chat:${session.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `session_id=eq.${session.id}`
-        }, (payload: RealtimePayload<ChatMessage>) => {
-          setMessages((prev) => {
-            // Check if message already exists
-            if (prev.some(msg => msg.id === payload.new.id)) {
-              return prev
-            }
-            return [...prev, payload.new]
-          })
+      console.log('Setting up subscription for chat session:', session.id)
+      const channel = supabase.channel(`chat:${session.id}`)
+      
+      channel
+        .on(
+          'postgres_changes' as any,
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'chat_messages',
+            filter: `session_id=eq.${session.id}`
+          },
+          (payload: RealtimePayload<ChatMessage>) => {
+            console.log('New message received in chat window:', payload.new)
+            setMessages((prev) => {
+              // Check if message already exists
+              if (prev.some(msg => msg.id === payload.new.id)) {
+                return prev
+              }
+              return [...prev, payload.new]
+            })
+          }
+        )
+        .subscribe((status) => {
+          console.log(`Chat window subscription status for ${session.id}:`, status)
         })
-        .subscribe()
 
       return () => {
+        console.log(`Unsubscribing from chat ${session.id}`)
         supabase.removeChannel(channel)
       }
     }
-  }, [session?.id])
+  }, [session?.id, supabase])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -84,11 +94,16 @@ export function ChatWindow({ isOpen, className }: ChatWindowProps) {
       }
 
       // Verify user is a customer
-      const { data: customer } = await supabase
+      const { data: customer, error: customerError } = await supabase
         .from('customers')
         .select('id')
         .eq('id', user.id)
         .single()
+
+      if (customerError) {
+        console.error('Error checking customer:', customerError)
+        return
+      }
 
       if (!customer) {
         console.error('Not a customer')
@@ -96,32 +111,53 @@ export function ChatWindow({ isOpen, className }: ChatWindowProps) {
       }
 
       // Check for existing active session
-      const { data: existingSession, error: sessionError } = await supabase
+      const { data: existingSessions, error: sessionError } = await supabase
         .from('chat_sessions')
-        .select()
+        .select(`
+          id,
+          user_id,
+          status,
+          created_at,
+          ended_at,
+          metadata
+        `)
         .eq('user_id', user.id)
         .eq('status', 'active')
-        .maybeSingle()
+        .order('created_at', { ascending: false })
+        .limit(1)
 
       if (sessionError) {
         console.error('Error checking existing session:', sessionError)
         return
       }
 
-      if (existingSession) {
-        console.log('Found existing session:', existingSession.id)
-        setSession(existingSession)
-        await loadMessages(existingSession.id)
+      if (existingSessions && existingSessions.length > 0) {
+        const mostRecentSession = existingSessions[0]
+        console.log('Found existing session:', mostRecentSession)
+        setSession(mostRecentSession)
+        await loadMessages(mostRecentSession.id)
+
+        // End any other active sessions
+        if (existingSessions.length > 1) {
+          const otherSessionIds = existingSessions.slice(1).map(s => s.id)
+          await supabase
+            .from('chat_sessions')
+            .update({ status: 'ended' })
+            .in('id', otherSessionIds)
+          console.log('Ended other active sessions:', otherSessionIds)
+        }
         return
       }
 
+      console.log('Creating new session for user:', user.id)
       // Create a new chat session
       const { data: newSession, error: createError } = await supabase
         .from('chat_sessions')
         .insert([
           { 
             user_id: user.id,
-            status: 'active'
+            status: 'active',
+            metadata: {}
           }
         ])
         .select()
@@ -132,7 +168,7 @@ export function ChatWindow({ isOpen, className }: ChatWindowProps) {
         return
       }
 
-      console.log('Created new session:', newSession.id)
+      console.log('Created new session:', newSession)
       setSession(newSession)
     } catch (error) {
       console.error('Error initializing chat:', error)

@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { ChatSession } from '@/lib/types'
+import { ChatSession, ChatMessage, RealtimePayload } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { format } from 'date-fns'
-import { Loader2, MessageCircle } from 'lucide-react'
+import { Loader2, MessageCircle, Send } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export function ChatList() {
   const supabase = createClient()
@@ -14,26 +15,113 @@ export function ChatList() {
   const [selectedSession, setSelectedSession] = useState<string | null>(null)
   const [response, setResponse] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const messageContainerRef = useRef<HTMLDivElement>(null)
 
+  // Scroll when messages change or when chat is selected
   useEffect(() => {
-    loadActiveSessions()
-    
-    // Subscribe to new sessions and status changes
-    const channel = supabase
-      .channel('chat_sessions')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'chat_sessions'
-      }, () => {
-        loadActiveSessions()
-      })
-      .subscribe()
+    if (messageContainerRef.current) {
+      messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight
+    }
+  }, [selectedSession, sessions])
+
+  // Single effect to handle all subscriptions
+  useEffect(() => {
+    let mounted = true
+    console.log('Setting up chat subscriptions')
+
+    async function setupSubscriptions() {
+      try {
+        // Verify agent status first
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError) throw authError
+        if (!user) {
+          console.error('No authenticated user')
+          return
+        }
+
+        const { data: agent } = await supabase
+          .from('agents')
+          .select('id, role')
+          .eq('id', user.id)
+          .single()
+
+        if (!agent) {
+          console.error('Not an agent')
+          return
+        }
+
+        // Load initial sessions
+        await loadActiveSessions()
+        
+        if (!mounted) return
+
+        // Set up realtime subscriptions
+        const channel = supabase.channel('agent_chat')
+        channelRef.current = channel
+
+        channel
+          .on(
+            'postgres_changes' as any,
+            {
+              event: '*',
+              schema: 'public',
+              table: 'chat_sessions',
+              filter: 'status=eq.active'
+            },
+            (payload: RealtimePayload<ChatSession>) => {
+              if (!mounted) return
+              console.log('Session change received:', payload)
+              
+              if (payload.eventType === 'DELETE' || (payload.eventType === 'UPDATE' && payload.new.status === 'ended')) {
+                setSessions(prev => prev.filter(s => s.id !== payload.old?.id))
+              } else if (payload.eventType === 'INSERT') {
+                loadActiveSessions()
+              }
+            }
+          )
+          .on(
+            'postgres_changes' as any,
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'chat_messages'
+            },
+            (payload: RealtimePayload<ChatMessage>) => {
+              if (!mounted) return
+              console.log('Message received:', payload)
+
+              setSessions(prev => prev.map(session => {
+                if (session.id === payload.new.session_id) {
+                  return {
+                    ...session,
+                    chat_messages: [...(session.chat_messages || []), payload.new]
+                  }
+                }
+                return session
+              }))
+            }
+          )
+          .subscribe((status) => {
+            console.log('Subscription status:', status)
+          })
+
+      } catch (error) {
+        console.error('Setup error:', error)
+      }
+    }
+
+    setupSubscriptions()
 
     return () => {
-      supabase.removeChannel(channel)
+      mounted = false
+      if (channelRef.current) {
+        console.log('Cleaning up subscriptions')
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
     }
-  }, [])
+  }, [supabase]) // Only depend on supabase client
 
   const loadActiveSessions = async () => {
     try {
@@ -55,8 +143,8 @@ export function ChatList() {
         return
       }
 
-      // Then load active sessions
-      const { data: sessions, error: sessionsError } = await supabase
+      // Get all active sessions grouped by user_id
+      const { data: allSessions, error: sessionsError } = await supabase
         .from('chat_sessions')
         .select(`
           id,
@@ -84,13 +172,46 @@ export function ChatList() {
         return
       }
 
-      if (!sessions) {
+      if (!allSessions) {
         setSessions([])
         return
       }
 
+      // Group sessions by user_id
+      const sessionsByUser = allSessions.reduce((acc, session) => {
+        if (!acc[session.user_id]) {
+          acc[session.user_id] = []
+        }
+        acc[session.user_id].push(session)
+        return acc
+      }, {} as Record<string, typeof allSessions>)
+
+      // For each user, keep only the most recent session and end others
+      const sessionsToKeep: typeof allSessions = []
+      const sessionsToEnd: string[] = []
+
+      for (const [userId, userSessions] of Object.entries(sessionsByUser)) {
+        // Keep the most recent session
+        sessionsToKeep.push(userSessions[0])
+        
+        // Mark older sessions for ending
+        if (userSessions.length > 1) {
+          const olderSessionIds = userSessions.slice(1).map(s => s.id)
+          sessionsToEnd.push(...olderSessionIds)
+        }
+      }
+
+      // End older sessions
+      if (sessionsToEnd.length > 0) {
+        console.log('Ending older sessions:', sessionsToEnd)
+        await supabase
+          .from('chat_sessions')
+          .update({ status: 'ended' })
+          .in('id', sessionsToEnd)
+      }
+
       // For now, just use the user_id as we can't get email from client side
-      const sessionsWithUsers = sessions.map(session => ({
+      const sessionsWithUsers = sessionsToKeep.map(session => ({
         ...session,
         user: { id: session.user_id, email: session.user_id }
       })) as ChatSession[]
@@ -108,20 +229,41 @@ export function ChatList() {
 
     setIsSending(true)
     try {
-      const res = await fetch(`/api/chat/${sessionId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: response.trim() })
-      })
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-      if (!res.ok) {
-        throw new Error('Failed to send response')
+      // Direct database insert like customer side
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .insert([{
+          session_id: sessionId,
+          sender_id: user.id,
+          sender_type: 'agent',
+          content: response.trim()
+        }])
+        .select()
+        .single()
+
+      if (error) {
+        throw error
+      }
+
+      // Optimistically update local state
+      if (data) {
+        setSessions(prev => prev.map(session => {
+          if (session.id === sessionId) {
+            return {
+              ...session,
+              chat_messages: [...(session.chat_messages || []), data]
+            }
+          }
+          return session
+        }))
       }
 
       setResponse('')
-      setSelectedSession(null)
-      // Reload sessions to get the latest messages
-      loadActiveSessions()
+      // Don't close the chat window
+      // setSelectedSession(null) - Removed this line
     } catch (error) {
       console.error('Error sending response:', error)
     } finally {
@@ -138,71 +280,198 @@ export function ChatList() {
   }
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Active Chats</h2>
-      
-      {sessions.length === 0 ? (
-        <p className="text-muted-foreground">No active chat sessions</p>
-      ) : (
-        <div className="grid gap-4">
-          {sessions.map((session) => (
-            <Card key={session.id} className="p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-medium">
-                    {session.user?.email}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Started {format(new Date(session.created_at), 'PP p')}
-                  </p>
-                  {session.chat_messages && session.chat_messages.length > 0 && (
-                    <p className="mt-2 text-sm">
-                      Latest: {session.chat_messages[session.chat_messages.length - 1].content}
-                    </p>
-                  )}
-                </div>
+    <div className="container mx-auto py-6 max-w-5xl">
+      <div className="grid grid-cols-3 gap-6 h-[calc(100vh-8rem)]">
+        {/* Chat List Sidebar */}
+        <div className="col-span-1 border rounded-lg bg-background overflow-hidden flex flex-col">
+          <div className="p-4 border-b bg-muted/40">
+            <h2 className="font-semibold">Active Chats</h2>
+          </div>
+          
+          <div className="overflow-y-auto flex-1">
+            {sessions.length === 0 ? (
+              <p className="p-4 text-muted-foreground">No active chat sessions</p>
+            ) : (
+              <div className="divide-y">
+                {sessions.map((session) => (
+                  <button
+                    key={session.id}
+                    onClick={() => setSelectedSession(session.id)}
+                    className={cn(
+                      "w-full text-left p-4 hover:bg-muted/50 transition-colors",
+                      selectedSession === session.id && "bg-muted"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium truncate">
+                          Customer {session.user_id.slice(0, 6)}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {format(new Date(session.created_at), 'PP p')}
+                        </p>
+                      </div>
+                      {session.chat_messages && session.chat_messages.length > 0 && (
+                        <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded-full">
+                          {session.chat_messages.length}
+                        </span>
+                      )}
+                    </div>
+                    {session.chat_messages && session.chat_messages.length > 0 && (
+                      <p className="mt-1 text-sm text-muted-foreground truncate">
+                        {session.chat_messages[session.chat_messages.length - 1].content}
+                      </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
+        {/* Chat Window */}
+        <div className="col-span-2 border rounded-lg bg-background overflow-hidden flex flex-col">
+          {selectedSession ? (
+            <>
+              <div className="p-4 border-b bg-muted/40 flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold">
+                    Chat with Customer {sessions.find(s => s.id === selectedSession)?.user_id.slice(0, 6)}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Started {format(new Date(sessions.find(s => s.id === selectedSession)?.created_at || ''), 'PP p')}
+                  </p>
+                </div>
                 <button
-                  onClick={() => setSelectedSession(session.id)}
-                  className="p-2 hover:bg-muted rounded-md"
+                  onClick={async () => {
+                    const session = sessions.find(s => s.id === selectedSession)
+                    if (!session) return
+                    
+                    try {
+                      // Create a ticket from the chat
+                      const { data: ticket, error: ticketError } = await supabase
+                        .from('tickets')
+                        .insert([{
+                          customer_id: session.user_id,
+                          title: 'Chat Conversation',
+                          description: 'Converted from chat session',
+                          source: 'chat',
+                          status: 'new',
+                          priority: 'medium',
+                          metadata: {
+                            chat_session_id: session.id
+                          }
+                        }])
+                        .select()
+                        .single()
+
+                      if (ticketError) throw ticketError
+
+                      // Add chat transcript as first response
+                      const transcript = session.chat_messages?.map(m => 
+                        `${m.sender_type}: ${m.content}`
+                      ).join('\n')
+
+                      await supabase
+                        .from('ticket_responses')
+                        .insert([{
+                          ticket_id: ticket.id,
+                          author_id: session.user_id,
+                          content: transcript || '',
+                          type: 'human',
+                          is_internal: true,
+                          metadata: {
+                            source: 'chat_transcript'
+                          }
+                        }])
+
+                      // End chat session
+                      await supabase
+                        .from('chat_sessions')
+                        .update({ status: 'ended' })
+                        .eq('id', session.id)
+
+                      // Redirect to ticket
+                      window.location.href = `/tickets/${ticket.id}`
+                    } catch (error) {
+                      console.error('Error converting to ticket:', error)
+                    }
+                  }}
+                  className="text-sm text-muted-foreground hover:text-foreground"
                 >
-                  <MessageCircle className="h-4 w-4" />
+                  Convert to Ticket
                 </button>
               </div>
 
-              {selectedSession === session.id && (
-                <div className="mt-4 space-y-4">
-                  <textarea
+              <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={messageContainerRef}>
+                {sessions.find(s => s.id === selectedSession)?.chat_messages?.map((message, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      "flex flex-col space-y-1",
+                      message.sender_type === 'customer' ? 'items-start' : 'items-end'
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "px-3 py-2 rounded-lg max-w-[85%] break-words",
+                        message.sender_type === 'customer' 
+                          ? 'bg-muted rounded-bl-none'
+                          : 'bg-primary text-primary-foreground rounded-br-none'
+                      )}
+                    >
+                      {message.content}
+                    </div>
+                    <span className="text-xs text-muted-foreground px-1">
+                      {format(new Date(message.created_at), 'HH:mm')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-4 border-t">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (selectedSession) {
+                      sendResponse(selectedSession)
+                    }
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="text"
                     value={response}
                     onChange={(e) => setResponse(e.target.value)}
                     placeholder="Type your response..."
-                    className="w-full min-h-[100px] p-2 text-sm rounded-md border"
+                    className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm"
+                    disabled={isSending}
                   />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => setSelectedSession(null)}
-                      className="px-3 py-1 text-sm hover:bg-muted rounded-md"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => sendResponse(session.id)}
-                      disabled={isSending}
-                      className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      {isSending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        'Send'
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </Card>
-          ))}
+                  <button
+                    type="submit"
+                    className={cn(
+                      "p-2 rounded-lg bg-primary text-primary-foreground",
+                      isSending ? "opacity-50 cursor-not-allowed" : "hover:bg-primary/90"
+                    )}
+                    disabled={isSending}
+                  >
+                    {isSending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">Send message</span>
+                  </button>
+                </form>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+              Select a chat to start responding
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 } 
