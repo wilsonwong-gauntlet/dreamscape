@@ -22,7 +22,7 @@ export default function AppLayout({ children, role }: AppLayoutProps) {
       </nav>
       <main className="flex-1 flex flex-col min-h-0">
         <Header />
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1">
           {children}
         </div>
         {role === 'customer' && <Chat />}

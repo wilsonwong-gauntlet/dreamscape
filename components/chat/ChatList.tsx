@@ -271,6 +271,123 @@ export function ChatList() {
     }
   }
 
+  const convertToTicket = async (session: ChatSession) => {
+    if (!session || !session.chat_messages?.length) return
+    
+    try {
+      setIsLoading(true)
+      
+      // Log the current user and session info
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      console.log('Current user:', user)
+      console.log('Session to convert:', session)
+
+      // Verify agent status
+      const { data: agent, error: agentError } = await supabase
+        .from('agents')
+        .select('*')
+        .eq('id', user?.id)
+        .single()
+      
+      console.log('Agent check:', { agent, agentError })
+
+      // Verify customer exists
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', session.user_id)
+        .single()
+      
+      console.log('Customer check:', { customer, customerError })
+      
+      // Create a ticket from the chat
+      const ticketData = {
+        customer_id: session.user_id,
+        title: 'Chat Conversation',
+        description: session.chat_messages[0]?.content || 'No message content',
+        source: 'chat',
+        status: 'new',
+        priority: 'medium',
+        metadata: {
+          chat_session_id: session.id,
+          converted_at: new Date().toISOString(),
+          converted_by: 'agent'
+        }
+      }
+      
+      console.log('Attempting to create ticket with data:', ticketData)
+
+      const { data: ticket, error: ticketError } = await supabase
+        .from('tickets')
+        .insert([ticketData])
+        .select()
+        .single()
+
+      console.log('Ticket creation result:', { ticket, ticketError })
+
+      if (ticketError) throw ticketError
+
+      // Add chat transcript as first response
+      const transcript = session.chat_messages
+        .map(m => `${m.sender_type === 'customer' ? 'Customer' : 'Agent'}: ${m.content}`)
+        .join('\n')
+
+      const { data: response, error: responseError } = await supabase
+        .from('ticket_responses')
+        .insert([{
+          ticket_id: ticket.id,
+          content: transcript,
+          type: 'chat_transcript',
+          metadata: {
+            chat_session_id: session.id,
+            message_count: session.chat_messages.length
+          }
+        }])
+        .select()
+
+      console.log('Response creation result:', { response, responseError })
+
+      if (responseError) throw responseError
+
+      // End the chat session
+      const { data: updatedSession, error: updateError } = await supabase
+        .from('chat_sessions')
+        .update({ 
+          status: 'ended',
+          ended_at: new Date().toISOString(),
+          metadata: {
+            ...session.metadata,
+            converted_to_ticket: ticket.id
+          }
+        })
+        .eq('id', session.id)
+        .select()
+
+      console.log('Session update result:', { updatedSession, updateError })
+
+      if (updateError) throw updateError
+
+      // Remove session from list
+      setSessions(prev => prev.filter(s => s.id !== session.id))
+      setSelectedSession(null)
+
+      // Redirect to the new ticket
+      window.location.href = `/tickets/${ticket.id}`
+    } catch (error) {
+      console.error('Error converting to ticket:', error)
+      // Log the full error details
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        })
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -294,35 +411,35 @@ export function ChatList() {
             ) : (
               <div className="divide-y">
                 {sessions.map((session) => (
-                  <button
+                  <Card
                     key={session.id}
-                    onClick={() => setSelectedSession(session.id)}
                     className={cn(
-                      "w-full text-left p-2 hover:bg-muted/50 transition-colors",
-                      selectedSession === session.id && "bg-muted"
+                      'p-4 cursor-pointer hover:bg-accent',
+                      selectedSession === session.id && 'bg-accent'
                     )}
+                    onClick={() => setSelectedSession(session.id)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium truncate">
-                          Customer {session.user_id.slice(0, 6)}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {format(new Date(session.created_at), 'PP p')}
-                        </p>
-                      </div>
-                      {session.chat_messages && session.chat_messages.length > 0 && (
-                        <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded-full">
-                          {session.chat_messages.length}
-                        </span>
-                      )}
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="font-medium">{session.user?.email || session.user_id}</div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          convertToTicket(session)
+                        }}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Convert to Ticket
+                      </button>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {format(new Date(session.created_at), 'MMM d, h:mm a')}
                     </div>
                     {session.chat_messages && session.chat_messages.length > 0 && (
-                      <p className="mt-1 text-sm text-muted-foreground truncate">
+                      <div className="mt-2 text-sm truncate">
                         {session.chat_messages[session.chat_messages.length - 1].content}
-                      </p>
+                      </div>
                     )}
-                  </button>
+                  </Card>
                 ))}
               </div>
             )}

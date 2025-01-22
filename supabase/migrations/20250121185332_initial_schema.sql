@@ -113,6 +113,15 @@ CREATE POLICY "Agents can view assigned tickets"
     USING (auth.uid() = assigned_agent_id OR 
            auth.uid() IN (SELECT id FROM agents WHERE team_id = tickets.team_id));
 
+-- Add policies for ticket creation
+CREATE POLICY "Customers can create tickets"
+    ON tickets FOR INSERT
+    WITH CHECK (auth.uid() = customer_id);
+
+CREATE POLICY "Agents can create tickets for customers"
+    ON tickets FOR INSERT
+    WITH CHECK (auth.uid() IN (SELECT id FROM agents));
+
 -- Add RLS policies for ticket responses
 CREATE POLICY "Customers can view responses to their tickets"
     ON ticket_responses FOR SELECT

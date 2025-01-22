@@ -227,18 +227,21 @@ export function ChatWindow({ isOpen, className }: ChatWindowProps) {
               if (!session) return
               
               try {
+                setIsLoading(true)
+                
                 // Create a ticket from the chat
                 const { data: ticket, error: ticketError } = await supabase
                   .from('tickets')
                   .insert([{
                     customer_id: session.user_id,
                     title: 'Chat Conversation',
-                    description: 'Converted from chat session',
+                    description: messages[0]?.content || 'No message content',
                     source: 'chat',
                     status: 'new',
                     priority: 'medium',
                     metadata: {
-                      chat_session_id: session.id
+                      chat_session_id: session.id,
+                      converted_at: new Date().toISOString()
                     }
                   }])
                   .select()
@@ -247,33 +250,46 @@ export function ChatWindow({ isOpen, className }: ChatWindowProps) {
                 if (ticketError) throw ticketError
 
                 // Add chat transcript as first response
-                const transcript = messages.map(m => 
-                  `${m.sender_type}: ${m.content}`
-                ).join('\n')
+                const transcript = messages
+                  .map(m => `${m.sender_type === 'customer' ? 'Customer' : 'Agent'}: ${m.content}`)
+                  .join('\n')
 
-                await supabase
+                const { error: responseError } = await supabase
                   .from('ticket_responses')
                   .insert([{
                     ticket_id: ticket.id,
-                    author_id: session.user_id,
                     content: transcript,
-                    type: 'human',
-                    is_internal: true,
+                    type: 'chat_transcript',
                     metadata: {
-                      source: 'chat_transcript'
+                      chat_session_id: session.id,
+                      message_count: messages.length
                     }
                   }])
 
-                // End chat session
-                await supabase
+                if (responseError) throw responseError
+
+                // End the chat session
+                const { error: updateError } = await supabase
                   .from('chat_sessions')
-                  .update({ status: 'ended' })
+                  .update({ 
+                    status: 'ended',
+                    ended_at: new Date().toISOString(),
+                    metadata: {
+                      ...session.metadata,
+                      converted_to_ticket: ticket.id
+                    }
+                  })
                   .eq('id', session.id)
 
-                // Redirect to ticket
+                if (updateError) throw updateError
+
+                // Redirect to the new ticket
                 window.location.href = `/tickets/${ticket.id}`
               } catch (error) {
                 console.error('Error converting to ticket:', error)
+                // TODO: Show error toast
+              } finally {
+                setIsLoading(false)
               }
             }}
             className="text-xs text-muted-foreground hover:text-foreground"
