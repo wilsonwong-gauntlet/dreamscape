@@ -6,6 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -14,18 +15,23 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from 'sonner'
+import { Loader2, AlertCircle } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { cn } from '@/lib/utils'
 
 export default function NewTicketPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
   const router = useRouter()
   const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setIsLoading(true)
+    setError('')
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -39,7 +45,7 @@ export default function NewTicketPage() {
 
       if (!customer) throw new Error('Customer record not found')
 
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from('tickets')
         .insert({
           title,
@@ -49,13 +55,14 @@ export default function NewTicketPage() {
           source: 'web'
         })
 
-      if (error) throw error
+      if (insertError) throw insertError
 
       toast.success('Ticket created successfully')
       router.push('/tickets')
       router.refresh()
     } catch (error) {
       console.error('Error:', error)
+      setError('Failed to create ticket. Please try again.')
       toast.error('Failed to create ticket')
     } finally {
       setIsLoading(false)
@@ -64,43 +71,88 @@ export default function NewTicketPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Create New Ticket</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Create New Ticket</h1>
+        <Button
+          variant="outline"
+          onClick={() => router.back()}
+          className="text-muted-foreground"
+        >
+          Cancel
+        </Button>
+      </div>
+
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-2">
+          <Label htmlFor="title">Title</Label>
           <Input
-            placeholder="Ticket title"
+            id="title"
+            placeholder="Brief summary of your issue"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
+            disabled={isLoading}
+            className={cn(
+              "transition-colors",
+              title.length > 0 && "border-primary"
+            )}
           />
         </div>
-        <div>
+
+        <div className="space-y-2">
+          <Label htmlFor="description">Description</Label>
           <Textarea
-            placeholder="Describe your issue"
+            id="description"
+            placeholder="Please provide detailed information about your issue"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             required
-            rows={5}
+            disabled={isLoading}
+            className={cn(
+              "min-h-[150px] transition-colors",
+              description.length > 0 && "border-primary"
+            )}
           />
+          <p className="text-xs text-muted-foreground">
+            Include any relevant details that will help us assist you better.
+          </p>
         </div>
-        <div>
+
+        <div className="space-y-2">
+          <Label htmlFor="priority">Priority Level</Label>
           <Select
             value={priority}
             onValueChange={(value: 'low' | 'medium' | 'high') => setPriority(value)}
+            disabled={isLoading}
           >
-            <SelectTrigger>
+            <SelectTrigger id="priority" className="w-full">
               <SelectValue placeholder="Select priority" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="low">Low</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="low">Low - Not time sensitive</SelectItem>
+              <SelectItem value="medium">Medium - Needs attention soon</SelectItem>
+              <SelectItem value="high">High - Urgent issue</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        <Button type="submit" disabled={isLoading}>
-          Create Ticket
-        </Button>
+
+        <div className="flex gap-4 pt-4">
+          <Button
+            type="submit"
+            disabled={isLoading || !title || !description}
+            className="flex-1"
+          >
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isLoading ? 'Creating Ticket...' : 'Create Ticket'}
+          </Button>
+        </div>
       </form>
     </div>
   )
