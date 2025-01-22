@@ -273,24 +273,24 @@ export function ChatList() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center p-8">
+      <div className="h-full flex items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto py-6 max-w-5xl">
-      <div className="grid grid-cols-3 gap-6 h-[calc(100vh-8rem)]">
+    <div className="h-full">
+      <div className="h-full grid grid-cols-3">
         {/* Chat List Sidebar */}
-        <div className="col-span-1 border rounded-lg bg-background overflow-hidden flex flex-col">
-          <div className="p-4 border-b bg-muted/40">
+        <div className="col-span-1 border-r bg-background flex flex-col min-h-0">
+          <div className="border-b bg-muted/40 p-2 flex-none">
             <h2 className="font-semibold">Active Chats</h2>
           </div>
           
-          <div className="overflow-y-auto flex-1">
+          <div className="overflow-y-auto">
             {sessions.length === 0 ? (
-              <p className="p-4 text-muted-foreground">No active chat sessions</p>
+              <p className="p-2 text-muted-foreground">No active chat sessions</p>
             ) : (
               <div className="divide-y">
                 {sessions.map((session) => (
@@ -298,7 +298,7 @@ export function ChatList() {
                     key={session.id}
                     onClick={() => setSelectedSession(session.id)}
                     className={cn(
-                      "w-full text-left p-4 hover:bg-muted/50 transition-colors",
+                      "w-full text-left p-2 hover:bg-muted/50 transition-colors",
                       selectedSession === session.id && "bg-muted"
                     )}
                   >
@@ -330,10 +330,10 @@ export function ChatList() {
         </div>
 
         {/* Chat Window */}
-        <div className="col-span-2 border rounded-lg bg-background overflow-hidden flex flex-col">
+        <div className="col-span-2 bg-background flex flex-col min-h-0">
           {selectedSession ? (
             <>
-              <div className="p-4 border-b bg-muted/40 flex items-center justify-between">
+              <div className="border-b bg-muted/40 p-2 flex-none">
                 <div>
                   <h3 className="font-semibold">
                     Chat with Customer {sessions.find(s => s.id === selectedSession)?.user_id.slice(0, 6)}
@@ -403,7 +403,7 @@ export function ChatList() {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={messageContainerRef}>
+              <div className="overflow-y-auto p-2 space-y-2" ref={messageContainerRef}>
                 {sessions.find(s => s.id === selectedSession)?.chat_messages?.map((message, index) => (
                   <div
                     key={index}
@@ -429,7 +429,7 @@ export function ChatList() {
                 ))}
               </div>
 
-              <div className="p-4 border-t">
+              <div className="border-t p-2 flex-none">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault()
@@ -449,25 +449,24 @@ export function ChatList() {
                   />
                   <button
                     type="submit"
-                    className={cn(
-                      "p-2 rounded-lg bg-primary text-primary-foreground",
-                      isSending ? "opacity-50 cursor-not-allowed" : "hover:bg-primary/90"
-                    )}
-                    disabled={isSending}
+                    disabled={isSending || !response.trim()}
+                    className="rounded-lg bg-primary px-3 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   >
                     {isSending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Send className="h-4 w-4" />
                     )}
-                    <span className="sr-only">Send message</span>
                   </button>
                 </form>
               </div>
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              Select a chat to start responding
+              <div className="flex flex-col items-center gap-2">
+                <MessageCircle className="h-8 w-8" />
+                <p>Select a chat to start responding</p>
+              </div>
             </div>
           )}
         </div>

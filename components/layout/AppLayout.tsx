@@ -20,9 +20,9 @@ export default function AppLayout({ children, role }: AppLayoutProps) {
         {role === 'agent' && <AgentNav />}
         {role === 'admin' && <AdminNav />}
       </nav>
-      <main className="flex-1">
+      <main className="flex-1 flex flex-col min-h-0">
         <Header />
-        <div className="container mx-auto py-6">
+        <div className="flex-1 overflow-hidden">
           {children}
         </div>
         {role === 'customer' && <Chat />}
