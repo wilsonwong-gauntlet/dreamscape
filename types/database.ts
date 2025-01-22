@@ -4,45 +4,48 @@ export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent'
 export interface Team {
   id: string
   name: string
-  description: string | null
+  description: string
   created_at: string
   updated_at: string
+  metadata: Record<string, any>
 }
 
 export interface Agent {
   id: string
-  team_id: string | null
-  role: string
-  status: string
-  skills: string[]
+  name: string
+  email: string
+  role: 'agent' | 'admin'
+  team_id: string
   created_at: string
   updated_at: string
+  metadata: Record<string, any>
 }
 
 export interface Customer {
   id: string
-  external_id: string | null
-  company: string | null
-  metadata: Record<string, any>
+  name: string
+  email: string
   created_at: string
   updated_at: string
+  metadata: Record<string, any>
 }
 
 export interface Ticket {
   id: string
-  customer_id: string
-  assigned_agent_id: string | null
-  team_id: string | null
   title: string
   description: string
-  status: TicketStatus
-  priority: TicketPriority
+  status: 'new' | 'open' | 'pending' | 'resolved' | 'closed'
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  created_at: string
+  updated_at: string
+  closed_at: string | null
+  customer_id: string
+  assigned_agent_id: string | null
+  team_id: string
   source: string
   tags: string[]
   metadata: Record<string, any>
   custom_fields: Record<string, any>
-  created_at: string
-  updated_at: string
 }
 
 export interface TicketHistory {
@@ -57,13 +60,12 @@ export interface TicketHistory {
 export interface TicketResponse {
   id: string
   ticket_id: string
-  author_id: string
   content: string
-  type: 'ai' | 'human'
-  is_internal: boolean
-  metadata: Record<string, any>
   created_at: string
-  updated_at: string
+  agent_id: string | null
+  is_ai: boolean
+  attachments: string[]
+  metadata: Record<string, any>
 }
 
 export interface KBArticle {
