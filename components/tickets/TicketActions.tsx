@@ -27,6 +27,7 @@ interface Agent {
   name?: string
   email: string
   team_id: string | null
+  displayName?: string
 }
 
 interface Ticket {
@@ -236,7 +237,7 @@ export function TicketActions({
                 onClick={() => handleAgentAssignment(agent.id)}
                 disabled={isUpdating}
               >
-                {agent.name || agent.email}
+                {agent.displayName}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

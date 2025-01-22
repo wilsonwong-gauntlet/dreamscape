@@ -165,12 +165,14 @@ export default async function TicketDetailPage({
   // Format agent data
   const formattedAgents = agents?.map(agent => {
     const userInfo = userDetails?.find(u => u.id === agent.id)
+    const name = userInfo?.raw_user_meta_data?.name
     return {
       id: agent.id,
-      name: userInfo?.raw_user_meta_data?.name,
+      name: name || userInfo?.email || 'Unknown Agent',
       email: userInfo?.email,
       team_id: agent.team_id,
-      role: agent.role
+      role: agent.role,
+      displayName: `${name || 'Unknown'} (${agent.role}${agent.team_id ? ' - ' + (teams?.find(t => t.id === agent.team_id)?.name || '') : ''})`
     }
   }) || []
 
