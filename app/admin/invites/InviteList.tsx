@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { Copy } from 'lucide-react'
+import { Copy, Link as LinkIcon } from 'lucide-react'
 
 interface Team {
   id: string
@@ -29,6 +29,7 @@ interface Invite {
   created_at: string
   expires_at: string
   used_at: string | null
+  token: string
 }
 
 interface InviteListProps {
@@ -42,7 +43,7 @@ export function InviteList({ teams, invites: initialInvites }: InviteListProps) 
   const [role, setRole] = useState<'agent' | 'admin'>('agent')
   const [teamId, setTeamId] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [inviteLink, setInviteLink] = useState('')
+  const [newInviteId, setNewInviteId] = useState<string | null>(null)
   const supabase = createClient()
 
   async function createInvite(e: React.FormEvent) {
@@ -65,9 +66,7 @@ export function InviteList({ teams, invites: initialInvites }: InviteListProps) 
 
       setInvites([data, ...invites])
       setEmail('')
-      
-      const link = `${window.location.origin}/auth/signup?token=${data.token}&email=${email}`
-      setInviteLink(link)
+      setNewInviteId(data.id)
       toast.success('Invite sent successfully')
       
     } catch (error) {
@@ -78,13 +77,18 @@ export function InviteList({ teams, invites: initialInvites }: InviteListProps) 
     }
   }
 
-  async function copyInviteLink() {
+  async function copyInviteLink(invite: Invite) {
     try {
-      await navigator.clipboard.writeText(inviteLink)
+      const link = `${window.location.origin}/auth/signup?token=${invite.token}&email=${invite.email}`
+      await navigator.clipboard.writeText(link)
       toast.success('Invite link copied to clipboard')
     } catch (error) {
       toast.error('Failed to copy invite link')
     }
+  }
+
+  function getInvitePreview(invite: Invite) {
+    return `${window.location.origin}/auth/signup?...${invite.token.slice(-6)}`
   }
 
   return (
@@ -131,22 +135,6 @@ export function InviteList({ teams, invites: initialInvites }: InviteListProps) 
         </div>
       </form>
 
-      {inviteLink && (
-        <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
-          <div className="flex-1 font-mono text-sm break-all">
-            {inviteLink}
-          </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={copyInviteLink}
-            title="Copy invite link"
-          >
-            <Copy className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
-
       <div className="border rounded-lg">
         <table className="w-full">
           <thead>
@@ -157,27 +145,53 @@ export function InviteList({ teams, invites: initialInvites }: InviteListProps) 
               <th className="text-left p-3">Status</th>
               <th className="text-left p-3">Created</th>
               <th className="text-left p-3">Expires</th>
+              <th className="text-left p-3">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {invites.map((invite) => (
-              <tr key={invite.id}>
-                <td className="p-3">{invite.email}</td>
-                <td className="p-3">{invite.role}</td>
-                <td className="p-3">{invite.teams?.name}</td>
-                <td className="p-3">
-                  {invite.used_at ? (
-                    <span className="text-muted-foreground">Used</span>
-                  ) : new Date(invite.expires_at) < new Date() ? (
-                    <span className="text-destructive">Expired</span>
-                  ) : (
-                    <span className="text-primary">Active</span>
-                  )}
-                </td>
-                <td className="p-3">{format(new Date(invite.created_at), 'PP')}</td>
-                <td className="p-3">{format(new Date(invite.expires_at), 'PP')}</td>
-              </tr>
-            ))}
+            {invites.map((invite) => {
+              const isActive = !invite.used_at && new Date(invite.expires_at) > new Date()
+              const isNew = invite.id === newInviteId
+              
+              return (
+                <tr key={invite.id} className={isNew ? "bg-primary/5" : undefined}>
+                  <td className="p-3">{invite.email}</td>
+                  <td className="p-3">{invite.role}</td>
+                  <td className="p-3">{invite.teams?.name}</td>
+                  <td className="p-3">
+                    {invite.used_at ? (
+                      <span className="text-muted-foreground">Used</span>
+                    ) : new Date(invite.expires_at) < new Date() ? (
+                      <span className="text-destructive">Expired</span>
+                    ) : (
+                      <span className="text-primary">Active</span>
+                    )}
+                  </td>
+                  <td className="p-3">{format(new Date(invite.created_at), 'PP')}</td>
+                  <td className="p-3">{format(new Date(invite.expires_at), 'PP')}</td>
+                  <td className="p-3">
+                    {isActive && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => copyInviteLink(invite)}
+                          title="Copy invite link"
+                          className="h-8 w-8"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        {isNew && (
+                          <span className="text-xs text-primary font-medium">
+                            New
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
