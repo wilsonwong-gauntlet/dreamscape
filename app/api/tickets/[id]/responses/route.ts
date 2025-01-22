@@ -2,83 +2,85 @@ import { NextResponse } from 'next/server'
 import type { TicketResponse } from '@/types/database'
 import { processTicketWithAI } from '@/lib/ai'
 import { createClient } from '@/app/utils/server'
+import { cookies } from 'next/headers'
 
 export async function POST(
-  req: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    const cookieStore = cookies()
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    const json = await req.json()
-    const { content, is_internal = false, type = 'human' } = json
+    // Get the response data from the request
+    const { content, is_internal, type } = await request.json()
 
-    // Validate required fields
-    if (!content) {
-      return NextResponse.json(
-        { error: 'Content is required' },
-        { status: 400 }
-      )
+    // Validate the ticket exists and user has access
+    const { data: ticket, error: ticketError } = await supabase
+      .from('tickets')
+      .select('id')
+      .eq('id', params.id)
+      .single()
+
+    if (ticketError || !ticket) {
+      return new NextResponse('Ticket not found', { status: 404 })
     }
 
     // Create the response
-    const { data: response, error } = await supabase
+    const { error: responseError } = await supabase
       .from('ticket_responses')
       .insert({
         ticket_id: params.id,
         author_id: user.id,
         content,
-        type,
-        is_internal,
-        metadata: {}
+        type: type || 'human',
+        is_internal: is_internal || false,
       })
-      .select()
-      .single()
 
-    if (error) throw error
+    if (responseError) {
+      console.error('Error creating response:', responseError)
+      return new NextResponse('Failed to create response', { status: 500 })
+    }
+
+    // Create history entry
+    await supabase.from('ticket_history').insert({
+      ticket_id: params.id,
+      actor_id: user.id,
+      action: 'add_response',
+      changes: { content, is_internal, type },
+    })
 
     // If this is a human response and not internal, trigger AI analysis
     if (type === 'human' && !is_internal) {
-      // Get the full ticket
-      const { data: ticket } = await supabase
-        .from('tickets')
-        .select('*')
-        .eq('id', params.id)
-        .single()
+      // Process with AI for potential follow-up
+      const aiResult = await processTicketWithAI({
+        ...ticket,
+        description: content // Use the new response as context
+      })
 
-      if (ticket) {
-        // Process with AI for potential follow-up
-        const aiResult = await processTicketWithAI({
-          ...ticket,
-          description: content // Use the new response as context
+      if (aiResult.canAutoResolve) {
+        // AI can suggest a follow-up
+        await supabase.from('ticket_responses').insert({
+          ticket_id: params.id,
+          content: aiResult.response,
+          type: 'ai',
+          author_id: null,
+          is_internal: true,
+          metadata: { confidence: aiResult.confidence }
         })
-
-        if (aiResult.canAutoResolve) {
-          // AI can suggest a follow-up
-          await supabase.from('ticket_responses').insert({
-            ticket_id: params.id,
-            content: aiResult.response,
-            type: 'ai',
-            author_id: null,
-            is_internal: true,
-            metadata: { confidence: aiResult.confidence }
-          })
-        }
       }
     }
 
-    return NextResponse.json(response)
+    return new NextResponse('OK', { status: 200 })
   } catch (error) {
-    console.error('Error creating response:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    console.error('Error in POST /api/tickets/[id]/responses:', error)
+    return new NextResponse('Internal Server Error', { status: 500 })
   }
 }
 
@@ -100,7 +102,10 @@ export async function GET(
     // Get responses
     let query = supabase
       .from('ticket_responses')
-      .select('*, author:auth.users(email)')
+      .select(`
+        *,
+        author:auth.users(email)
+      `)
       .eq('ticket_id', params.id)
       .order('created_at', { ascending: true })
 

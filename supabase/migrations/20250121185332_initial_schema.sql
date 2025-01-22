@@ -113,6 +113,39 @@ CREATE POLICY "Agents can view assigned tickets"
     USING (auth.uid() = assigned_agent_id OR 
            auth.uid() IN (SELECT id FROM agents WHERE team_id = tickets.team_id));
 
+-- Add RLS policies for ticket responses
+CREATE POLICY "Customers can view responses to their tickets"
+    ON ticket_responses FOR SELECT
+    USING (
+        ticket_id IN (
+            SELECT id FROM tickets WHERE customer_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Agents can view responses to their tickets"
+    ON ticket_responses FOR SELECT
+    USING (
+        ticket_id IN (
+            SELECT id FROM tickets 
+            WHERE assigned_agent_id = auth.uid() 
+            OR auth.uid() IN (SELECT id FROM agents WHERE team_id = tickets.team_id)
+        )
+    );
+
+CREATE POLICY "Agents can create responses"
+    ON ticket_responses FOR INSERT
+    WITH CHECK (
+        auth.uid() IN (SELECT id FROM agents)
+    );
+
+CREATE POLICY "Customers can create responses to their tickets"
+    ON ticket_responses FOR INSERT
+    WITH CHECK (
+        ticket_id IN (
+            SELECT id FROM tickets WHERE customer_id = auth.uid()
+        )
+    );
+
 -- Triggers for updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$

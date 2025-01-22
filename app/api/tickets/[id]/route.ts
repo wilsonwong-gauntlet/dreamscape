@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { Ticket } from '@/types/database'
 import { createClient } from '@/app/utils/server'
+import { cookies } from 'next/headers'
 
 export async function GET(
   req: Request,
@@ -102,5 +103,59 @@ export async function PUT(
       { error: 'Internal server error' },
       { status: 500 }
     )
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const cookieStore = cookies()
+    const supabase = await createClient()
+
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return new NextResponse('Unauthorized', { status: 401 })
+    }
+
+    // Get the update data from the request
+    const updates = await request.json()
+
+    // Validate the ticket exists and user has access
+    const { data: ticket, error: ticketError } = await supabase
+      .from('tickets')
+      .select('id')
+      .eq('id', params.id)
+      .single()
+
+    if (ticketError || !ticket) {
+      return new NextResponse('Ticket not found', { status: 404 })
+    }
+
+    // Update the ticket
+    const { error: updateError } = await supabase
+      .from('tickets')
+      .update(updates)
+      .eq('id', params.id)
+
+    if (updateError) {
+      console.error('Error updating ticket:', updateError)
+      return new NextResponse('Failed to update ticket', { status: 500 })
+    }
+
+    // Create history entry
+    await supabase.from('ticket_history').insert({
+      ticket_id: params.id,
+      actor_id: user.id,
+      action: 'update',
+      changes: updates,
+    })
+
+    return new NextResponse('OK', { status: 200 })
+  } catch (error) {
+    console.error('Error in PATCH /api/tickets/[id]:', error)
+    return new NextResponse('Internal Server Error', { status: 500 })
   }
 } 

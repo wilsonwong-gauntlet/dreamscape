@@ -20,13 +20,36 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MoreHorizontal, ArrowUpDown } from 'lucide-react'
-import type { Ticket } from '@/types/database'
 import { formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
 import TicketFilters, { TicketFilters as FilterOptions } from './TicketFilters'
 
+interface ExtendedTicket {
+  id: string
+  title: string
+  status: 'new' | 'open' | 'pending' | 'resolved' | 'closed'
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  created_at: string
+  customer: { 
+    id: string
+    user: {
+      email: string
+    }
+  } | null
+  assigned_agent: { 
+    id: string
+    user: {
+      email: string
+    }
+  } | null
+  team: { 
+    id: string
+    name: string 
+  } | null
+}
+
 interface TicketTableProps {
-  tickets: Ticket[]
+  tickets: ExtendedTicket[]
   isLoading?: boolean
 }
 
@@ -63,11 +86,11 @@ export default function TicketTable({ tickets, isLoading }: TicketTableProps) {
   }
 
   const statusColors = {
-    new: 'bg-blue-500',
-    open: 'bg-yellow-500',
-    pending: 'bg-purple-500',
-    resolved: 'bg-green-500',
-    closed: 'bg-gray-500',
+    new: 'bg-blue-500 text-white',
+    open: 'bg-yellow-500 text-white',
+    pending: 'bg-purple-500 text-white',
+    resolved: 'bg-green-500 text-white',
+    closed: 'bg-gray-500 text-white',
   }
 
   const priorityColors = {
@@ -91,6 +114,7 @@ export default function TicketTable({ tickets, isLoading }: TicketTableProps) {
             <TableRow>
               <TableHead className="w-[100px]">ID</TableHead>
               <TableHead>Title</TableHead>
+              <TableHead>Customer</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Priority</TableHead>
               <TableHead>
@@ -102,7 +126,7 @@ export default function TicketTable({ tickets, isLoading }: TicketTableProps) {
                   <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
               </TableHead>
-              <TableHead>Assigned To</TableHead>
+              <TableHead>Team</TableHead>
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -120,17 +144,19 @@ export default function TicketTable({ tickets, isLoading }: TicketTableProps) {
                     {ticket.title}
                   </Link>
                 </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {ticket.customer?.user.email || 'Unknown'}
+                </TableCell>
                 <TableCell>
                   <Badge
-                    variant="secondary"
-                    className={statusColors[ticket.status as keyof typeof statusColors]}
+                    className={statusColors[ticket.status]}
                   >
                     {ticket.status}
                   </Badge>
                 </TableCell>
                 <TableCell>
                   <Badge
-                    className={priorityColors[ticket.priority as keyof typeof priorityColors]}
+                    className={priorityColors[ticket.priority]}
                   >
                     {ticket.priority}
                   </Badge>
@@ -138,8 +164,8 @@ export default function TicketTable({ tickets, isLoading }: TicketTableProps) {
                 <TableCell className="text-muted-foreground">
                   {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}
                 </TableCell>
-                <TableCell>
-                  {ticket.assigned_agent_id ? 'Assigned' : 'Unassigned'}
+                <TableCell className="text-sm text-muted-foreground">
+                  {ticket.team?.name || 'Unassigned'}
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
@@ -151,7 +177,11 @@ export default function TicketTable({ tickets, isLoading }: TicketTableProps) {
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem>View Details</DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href={`/tickets/${ticket.id}`}>
+                          View Details
+                        </Link>
+                      </DropdownMenuItem>
                       <DropdownMenuItem>Assign Ticket</DropdownMenuItem>
                       <DropdownMenuItem>Change Status</DropdownMenuItem>
                     </DropdownMenuContent>

@@ -12,23 +12,26 @@ import {
 import { SlidersHorizontal } from "lucide-react"
 import { useState } from "react"
 
+type TicketStatus = 'new' | 'open' | 'pending' | 'resolved' | 'closed'
+type TicketPriority = 'low' | 'medium' | 'high' | 'urgent'
+
 interface TicketFiltersProps {
   onFilterChange: (filters: TicketFilters) => void
 }
 
 export interface TicketFilters {
-  status: string[]
-  priority: string[]
+  status: TicketStatus[]
+  priority: TicketPriority[]
 }
 
-const statusOptions = ["new", "open", "pending", "resolved", "closed"]
-const priorityOptions = ["low", "medium", "high", "urgent"]
+const statusOptions: TicketStatus[] = ['new', 'open', 'pending', 'resolved', 'closed']
+const priorityOptions: TicketPriority[] = ['low', 'medium', 'high', 'urgent']
 
 export default function TicketFilters({ onFilterChange }: TicketFiltersProps) {
-  const [selectedStatus, setSelectedStatus] = useState<string[]>([])
-  const [selectedPriority, setSelectedPriority] = useState<string[]>([])
+  const [selectedStatus, setSelectedStatus] = useState<TicketStatus[]>([])
+  const [selectedPriority, setSelectedPriority] = useState<TicketPriority[]>([])
 
-  const handleStatusChange = (status: string) => {
+  const handleStatusChange = (status: TicketStatus) => {
     const updated = selectedStatus.includes(status)
       ? selectedStatus.filter(s => s !== status)
       : [...selectedStatus, status]
@@ -36,7 +39,7 @@ export default function TicketFilters({ onFilterChange }: TicketFiltersProps) {
     onFilterChange({ status: updated, priority: selectedPriority })
   }
 
-  const handlePriorityChange = (priority: string) => {
+  const handlePriorityChange = (priority: TicketPriority) => {
     const updated = selectedPriority.includes(priority)
       ? selectedPriority.filter(p => p !== priority)
       : [...selectedPriority, priority]
@@ -51,6 +54,11 @@ export default function TicketFilters({ onFilterChange }: TicketFiltersProps) {
           <Button variant="outline" size="sm">
             <SlidersHorizontal className="mr-2 h-4 w-4" />
             Filters
+            {(selectedStatus.length > 0 || selectedPriority.length > 0) && (
+              <span className="ml-2 rounded-full bg-primary w-5 h-5 text-[11px] flex items-center justify-center text-primary-foreground">
+                {selectedStatus.length + selectedPriority.length}
+              </span>
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-48">
