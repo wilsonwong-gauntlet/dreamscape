@@ -1,12 +1,19 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { ChatSession, ChatMessage, RealtimePayload } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { format } from 'date-fns'
 import { Loader2, MessageCircle, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+interface CustomerInfo {
+  id: string
+  email: string
+  company: string | null
+  metadata: Record<string, any> | null
+}
 
 export function ChatList() {
   const supabase = createClient()
@@ -17,6 +24,7 @@ export function ChatList() {
   const [isSending, setIsSending] = useState(false)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const messageContainerRef = useRef<HTMLDivElement>(null)
+  const [customerInfo, setCustomerInfo] = useState<Record<string, CustomerInfo>>({})
 
   // Scroll when messages change or when chat is selected
   useEffect(() => {
@@ -123,6 +131,20 @@ export function ChatList() {
     }
   }, [supabase]) // Only depend on supabase client
 
+  const fetchCustomerInfo = useCallback(async (userId: string) => {
+    try {
+      const response = await fetch(`/api/customers/${userId}`)
+      if (!response.ok) return
+      const data = await response.json()
+      setCustomerInfo(prev => ({
+        ...prev,
+        [userId]: data
+      }))
+    } catch (error) {
+      console.error('Error fetching customer info:', error)
+    }
+  }, [])
+
   const loadActiveSessions = async () => {
     try {
       // First verify the user is an agent
@@ -216,6 +238,11 @@ export function ChatList() {
         user: { id: session.user_id, email: session.user_id }
       })) as ChatSession[]
 
+      // After setting sessions, fetch customer info for each
+      sessionsWithUsers.forEach(session => {
+        fetchCustomerInfo(session.user_id)
+      })
+
       setSessions(sessionsWithUsers)
     } catch (error) {
       console.error('Error:', error)
@@ -305,7 +332,12 @@ export function ChatList() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium truncate">
-                          Customer {session.user_id.slice(0, 6)}
+                          {customerInfo[session.user_id]?.email || `Customer ${session.user_id.slice(0, 6)}`}
+                          {customerInfo[session.user_id]?.company && (
+                            <span className="block text-sm text-muted-foreground">
+                              {customerInfo[session.user_id].company}
+                            </span>
+                          )}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {format(new Date(session.created_at), 'PP p')}
@@ -336,8 +368,14 @@ export function ChatList() {
               <div className="p-4 border-b bg-muted/40 flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold">
-                    Chat with Customer {sessions.find(s => s.id === selectedSession)?.user_id.slice(0, 6)}
+                    {customerInfo[sessions.find(s => s.id === selectedSession)?.user_id || '']?.email || 
+                     `Customer ${sessions.find(s => s.id === selectedSession)?.user_id.slice(0, 6)}`}
                   </h3>
+                  {customerInfo[sessions.find(s => s.id === selectedSession)?.user_id || '']?.company && (
+                    <p className="text-sm text-muted-foreground">
+                      {customerInfo[sessions.find(s => s.id === selectedSession)?.user_id || ''].company}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">
                     Started {format(new Date(sessions.find(s => s.id === selectedSession)?.created_at || ''), 'PP p')}
                   </p>
