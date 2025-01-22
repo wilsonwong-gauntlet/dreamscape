@@ -5,62 +5,76 @@ import { Badge } from "@/components/ui/badge"
 
 interface Response {
   id: string
+  ticket_id: string
+  author_id: string
   content: string
+  type: 'human' | 'ai'
+  is_internal: boolean
+  metadata: Record<string, any>
   created_at: string
-  agent_id: string | null
-  is_ai: boolean
+  updated_at: string
+  author?: {
+    id: string
+    email: string
+    user_metadata: {
+      name?: string
+    }
+  }
 }
 
 interface TicketResponseListProps {
   ticketId: string
+  responses: Response[]
 }
 
-export default function TicketResponseList({ ticketId }: TicketResponseListProps) {
-  // This would be replaced with real data from your API
-  const responses: Response[] = [
-    {
-      id: "1",
-      content: "Thank you for reaching out. We're looking into this issue.",
-      created_at: new Date().toISOString(),
-      agent_id: "agent-1",
-      is_ai: false,
-    },
-    {
-      id: "2",
-      content: "I've analyzed your issue and here's what I found...",
-      created_at: new Date().toISOString(),
-      agent_id: null,
-      is_ai: true,
-    },
-  ]
+export default function TicketResponseList({ responses }: TicketResponseListProps) {
+  if (!responses.length) {
+    return <div className="text-muted-foreground">No responses yet</div>
+  }
 
   return (
     <div className="space-y-4">
-      {responses.map((response) => (
-        <Card key={response.id}>
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                <span className="font-medium">
-                  {response.agent_id || "AutoCRM AI"}
+      {responses.map((response) => {
+        // Validate the date
+        const createdAt = new Date(response.created_at)
+        const isValidDate = !isNaN(createdAt.getTime())
+
+        // Get display name
+        const displayName = response.author?.user_metadata?.name || 
+                          response.author?.email || 
+                          'Unknown User'
+
+        return (
+          <Card key={response.id}>
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span className="font-medium">
+                    {displayName}
+                  </span>
+                  {response.type === 'ai' && (
+                    <Badge variant="secondary" className="bg-purple-100 text-purple-800">
+                      AI Response
+                    </Badge>
+                  )}
+                  {response.is_internal && (
+                    <Badge variant="secondary" className="bg-gray-100 text-gray-800">
+                      Internal
+                    </Badge>
+                  )}
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {isValidDate 
+                    ? formatDistanceToNow(createdAt, { addSuffix: true })
+                    : 'Invalid date'}
                 </span>
-                {response.is_ai && (
-                  <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-                    AI Response
-                  </Badge>
-                )}
               </div>
-              <span className="text-sm text-muted-foreground">
-                {formatDistanceToNow(new Date(response.created_at), {
-                  addSuffix: true,
-                })}
-              </span>
-            </div>
-            <p className="whitespace-pre-wrap">{response.content}</p>
-          </CardContent>
-        </Card>
-      ))}
+              <p className="whitespace-pre-wrap">{response.content}</p>
+            </CardContent>
+          </Card>
+        )
+      })}
     </div>
   )
 } 

@@ -26,6 +26,21 @@ import TicketResponseComposer from "./TicketResponseComposer"
 import { Input } from "@/components/ui/input"
 import { useState } from "react"
 
+interface Response {
+  id: string
+  ticket_id: string
+  author_id: string
+  content: string
+  type: 'human' | 'ai'
+  is_internal: boolean
+  metadata: Record<string, any>
+  created_at: string
+  updated_at: string
+  author?: {
+    email: string
+  }
+}
+
 interface TicketDetailProps {
   ticket: Ticket & {
     tags: string[]
@@ -36,6 +51,7 @@ interface TicketDetailProps {
       timestamp: string
       details?: string
     }[]
+    responses: Response[]
   }
   onStatusChange: (status: string) => void
   onAssigneeChange: (agentId: string) => void
@@ -49,6 +65,7 @@ export default function TicketDetail({
   onTagsChange,
 }: TicketDetailProps) {
   const [newTag, setNewTag] = useState("")
+  const [responseKey, setResponseKey] = useState(0)
   
   const statusColors = {
     new: "bg-blue-500",
@@ -76,6 +93,11 @@ export default function TicketDetail({
   const handleRemoveTag = (tagToRemove: string) => {
     const updatedTags = ticket.tags.filter(tag => tag !== tagToRemove)
     onTagsChange(updatedTags)
+  }
+
+  const handleResponseAdded = () => {
+    // Force a refresh of the response list by changing its key
+    setResponseKey(prev => prev + 1)
   }
 
   return (
@@ -227,34 +249,52 @@ export default function TicketDetail({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {ticket.history.map((event) => (
-              <div key={event.id} className="flex items-start gap-3 text-sm">
-                <History className="h-4 w-4 mt-1 text-muted-foreground" />
-                <div className="flex-1">
-                  <p>
-                    <span className="font-medium">{event.actor}</span>{" "}
-                    {event.action}
-                  </p>
-                  {event.details && (
-                    <p className="text-muted-foreground">{event.details}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(event.timestamp), {
-                      addSuffix: true,
-                    })}
-                  </p>
+            {ticket.history.map((event) => {
+              // Validate the timestamp
+              const timestamp = new Date(event.timestamp)
+              const isValidDate = !isNaN(timestamp.getTime())
+
+              return (
+                <div key={event.id} className="flex items-start gap-3 text-sm">
+                  <History className="h-4 w-4 mt-1 text-muted-foreground" />
+                  <div className="flex-1">
+                    <p>
+                      <span className="font-medium">{event.actor}</span>{" "}
+                      {event.action}
+                    </p>
+                    {event.details && (
+                      <p className="text-muted-foreground">{event.details}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {isValidDate 
+                        ? formatDistanceToNow(timestamp, { addSuffix: true })
+                        : 'Invalid date'}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </CardContent>
       </Card>
 
-      <div className="space-y-6">
-        <h2 className="text-xl font-semibold">Responses</h2>
-        <TicketResponseList ticketId={ticket.id} />
-        <TicketResponseComposer ticketId={ticket.id} />
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Responses</CardTitle>
+          <CardDescription>Communication history</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <TicketResponseList 
+            key={responseKey} 
+            ticketId={ticket.id} 
+            responses={ticket.responses} 
+          />
+          <TicketResponseComposer 
+            ticketId={ticket.id} 
+            onResponseAdded={handleResponseAdded}
+          />
+        </CardContent>
+      </Card>
     </div>
   )
 } 

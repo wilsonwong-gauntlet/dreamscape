@@ -108,10 +108,7 @@ export async function GET(
     // Get responses
     let query = supabase
       .from('ticket_responses')
-      .select(`
-        *,
-        author:auth.users(email)
-      `)
+      .select('*')
       .eq('ticket_id', params.id)
       .order('created_at', { ascending: true })
 
@@ -120,10 +117,22 @@ export async function GET(
     }
 
     const { data: responses, error } = await query
-
     if (error) throw error
 
-    return NextResponse.json(responses)
+    // Get user details for response authors
+    const authorIds = Array.from(new Set((responses || []).map(r => r.author_id)))
+    const { data: authors } = await supabase
+      .from('users')
+      .select('id, email, raw_user_meta_data')
+      .in('id', authorIds)
+
+    // Map authors to responses
+    const responsesWithAuthors = (responses || []).map(response => ({
+      ...response,
+      author: authors?.find(a => a.id === response.author_id) || null
+    }))
+
+    return NextResponse.json(responsesWithAuthors)
   } catch (error) {
     console.error('Error fetching responses:', error)
     return NextResponse.json(
