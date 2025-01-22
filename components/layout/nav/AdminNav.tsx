@@ -11,10 +11,14 @@ import {
   QueueListIcon,
   BookOpenIcon,
   EnvelopeIcon,
+  ChatBubbleLeftRightIcon,
+  TicketIcon,
 } from '@heroicons/react/24/outline'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
+  { name: 'All Tickets', href: '/tickets', icon: TicketIcon },
+  { name: 'Active Chats', href: '/chats', icon: ChatBubbleLeftRightIcon },
   { name: 'Teams', href: '/teams', icon: UserGroupIcon },
   { name: 'Queue', href: '/queue', icon: QueueListIcon },
   { name: 'Knowledge Base', href: '/knowledge', icon: BookOpenIcon },
