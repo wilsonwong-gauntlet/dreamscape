@@ -122,9 +122,9 @@ export default function TicketDetail({
   const totalHistoryPages = Math.ceil((ticket.history?.length || 0) / ITEMS_PER_PAGE)
   const totalResponsePages = Math.ceil((ticket.responses?.length || 0) / ITEMS_PER_PAGE)
   
-  // Initialize to last page
-  const [historyPage, setHistoryPage] = useState(totalHistoryPages || 1)
-  const [responsesPage, setResponsesPage] = useState(totalResponsePages || 1)
+  // Initialize to first page
+  const [historyPage, setHistoryPage] = useState(1)
+  const [responsesPage, setResponsesPage] = useState(1)
 
   useEffect(() => {
     setTicket(initialTicket)
@@ -328,15 +328,19 @@ export default function TicketDetail({
     await handleTagsChange(updatedTags)
   }
 
-  const paginatedHistory = ticket.history?.slice(
-    (historyPage - 1) * ITEMS_PER_PAGE,
-    historyPage * ITEMS_PER_PAGE
-  )
+  const paginatedHistory = ticket.history
+    ?.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    ?.slice(
+      (historyPage - 1) * ITEMS_PER_PAGE,
+      historyPage * ITEMS_PER_PAGE
+    )
 
-  const paginatedResponses = ticket.responses?.slice(
-    (responsesPage - 1) * ITEMS_PER_PAGE,
-    responsesPage * ITEMS_PER_PAGE
-  )
+  const paginatedResponses = ticket.responses
+    ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    ?.slice(
+      (responsesPage - 1) * ITEMS_PER_PAGE,
+      responsesPage * ITEMS_PER_PAGE
+    )
 
   const statusColors = {
     new: 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300',
