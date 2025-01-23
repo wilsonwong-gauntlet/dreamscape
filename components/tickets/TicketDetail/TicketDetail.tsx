@@ -65,14 +65,25 @@ interface LocalTicket {
   status: TicketStatus
   priority: TicketPriority
   created_at: string
+  customer?: {
+    id: string
+    user: {
+      id: string
+      email: string
+      user_metadata: {
+        full_name?: string
+      }
+    }
+  }
   team?: {
     id: string
     name: string
   }
   assigned_agent?: {
     id: string
-    name?: string
-    email: string
+    user: {
+      email: string
+    }
   }
   tags: string[]
   history: HistoryEntry[]
@@ -260,7 +271,7 @@ export default function TicketDetail({
               actor: 'You',
               timestamp: new Date().toISOString(),
               details: prev.assigned_agent 
-                ? `Unassigned from agent "${prev.assigned_agent.name || prev.assigned_agent.email}"`
+                ? `Unassigned from agent "${prev.assigned_agent.user.email}"`
                 : 'Removed agent assignment'
             },
             ...prev.history
@@ -278,8 +289,9 @@ export default function TicketDetail({
         ...prev,
         assigned_agent: {
           id: newAgent.id,
-          name: newAgent.name,
-          email: newAgent.email
+          user: {
+            email: newAgent.email
+          }
         },
         history: [
           {
@@ -288,8 +300,8 @@ export default function TicketDetail({
             actor: 'You',
             timestamp: new Date().toISOString(),
             details: prev.assigned_agent
-              ? `Reassigned from "${prev.assigned_agent.name || prev.assigned_agent.email}" to "${newAgent.name || newAgent.email}"`
-              : `Assigned to agent "${newAgent.name || newAgent.email}"`
+              ? `Reassigned from "${prev.assigned_agent.user.email}" to "${newAgent.email}"`
+              : `Assigned to agent "${newAgent.email}"`
           },
           ...prev.history
         ]
@@ -454,7 +466,7 @@ export default function TicketDetail({
                 <div className="flex items-center gap-1.5 text-gray-600">
                   <User className="h-3.5 w-3.5 text-gray-400" />
                   <span className={ticket.assigned_agent ? "" : "italic text-gray-400"}>
-                    {ticket.assigned_agent?.name || ticket.assigned_agent?.email || 'Unassigned'}
+                    {ticket.assigned_agent?.user?.email || 'Unassigned'}
                   </span>
                 </div>
                 {ticket.team && (
@@ -638,7 +650,7 @@ export default function TicketDetail({
                       "font-medium truncate",
                       ticket.assigned_agent ? "text-gray-700" : "text-gray-400 italic"
                     )}>
-                      {ticket.assigned_agent?.name || ticket.assigned_agent?.email || 'Unassigned'}
+                      {ticket.assigned_agent?.user?.email || 'Unassigned'}
                     </span>
                     <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-auto" />
                   </div>
@@ -744,6 +756,7 @@ export default function TicketDetail({
               <TicketResponseComposer
                 key={responseKey}
                 ticketId={ticket.id}
+                ticket={ticket}
                 onResponseAdded={handleResponseAdded}
               />
             </CardContent>

@@ -4,67 +4,188 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
-import { Wand2, Loader2, MessageSquare, FileText, ThumbsUp, Bot, Lock, X } from "lucide-react"
+import { Wand2, Loader2, MessageSquare, FileText, ThumbsUp, Bot, Lock, X, Search } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
+import { adminAuthClient } from "@/utils/supabase/server"
 
-interface Template {
+interface Macro {
   id: string
   title: string
   content: string
-  tags: string[]
+  description?: string
+  category?: string
+  variables?: string[]
+  team?: {
+    id: string
+    name: string
+  }
 }
 
 interface TicketResponseComposerProps {
   ticketId: string
+  ticket: {
+    id: string
+    title: string
+    status: string
+    priority: string
+    customer_id?: string
+    customer?: {
+      id: string
+      user: {
+        id: string
+        email: string
+        user_metadata: {
+          full_name?: string
+        }
+      }
+    }
+    assigned_agent?: {
+      id: string
+      user: {
+        email: string
+      }
+    }
+    team?: {
+      id: string
+      name: string
+    }
+  }
   onResponseAdded: () => void
 }
 
-export default function TicketResponseComposer({ ticketId, onResponseAdded }: TicketResponseComposerProps) {
+export default function TicketResponseComposer({ ticketId, ticket, onResponseAdded }: TicketResponseComposerProps) {
   const [content, setContent] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isInternal, setIsInternal] = useState(false)
-  const [showTemplates, setShowTemplates] = useState(false)
+  const [showMacros, setShowMacros] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
+  const [macros, setMacros] = useState<Macro[]>([])
+  const [isLoadingMacros, setIsLoadingMacros] = useState(false)
+  const [macroSearch, setMacroSearch] = useState("")
+  const [showVariableInput, setShowVariableInput] = useState(false)
+  const [currentMacro, setCurrentMacro] = useState<Macro | null>(null)
+  const [variableValues, setVariableValues] = useState<Record<string, string>>({})
+  const [customerData, setCustomerData] = useState<any>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  
-  // Mock templates - should come from API/database
-  const templates: Template[] = [
-    {
-      id: '1',
-      title: 'General Acknowledgment',
-      content: 'Thank you for reaching out. I understand your concern about...',
-      tags: ['general']
-    },
-    {
-      id: '2',
-      title: 'Status Update',
-      content: 'I wanted to update you on the status of your ticket...',
-      tags: ['update']
-    }
-  ]
 
-  const macros = {
-    '{ticket.id}': ticketId,
-    '{date}': new Date().toLocaleDateString(),
-    '{time}': new Date().toLocaleTimeString(),
+  useEffect(() => {
+    console.log('TicketResponseComposer mounted with ticket:', ticket)
+    if (ticket.customer_id) {
+      fetchCustomerData()
+    }
+  }, [ticket])
+
+  useEffect(() => {
+    if (showMacros) {
+      loadMacros()
+    }
+  }, [showMacros])
+
+  const fetchCustomerData = async () => {
+    try {
+      const response = await fetch(`/api/customers/${ticket.customer_id}`)
+      if (!response.ok) throw new Error('Failed to fetch customer data')
+      const data = await response.json()
+      setCustomerData(data)
+      console.log('Fetched customer data:', data)
+    } catch (error) {
+      console.error('Error fetching customer data:', error)
+    }
   }
 
-  const applyTemplate = (template: Template) => {
-    let newContent = template.content
-    // Replace macros
-    Object.entries(macros).forEach(([key, value]) => {
-      newContent = newContent.replace(key, value)
+  const loadMacros = async () => {
+    try {
+      setIsLoadingMacros(true)
+      const response = await fetch('/api/macros')
+      if (!response.ok) throw new Error('Failed to load macros')
+      const data = await response.json()
+      setMacros(data)
+    } catch (error) {
+      console.error('Error loading macros:', error)
+      toast.error('Failed to load macros')
+    } finally {
+      setIsLoadingMacros(false)
+    }
+  }
+
+  const applyMacro = (macro: Macro) => {
+    if (macro.variables && macro.variables.length > 0) {
+      setCurrentMacro(macro)
+      setVariableValues({})
+      setShowVariableInput(true)
+      return
+    }
+
+    applyMacroContent(macro, {})
+  }
+
+  const applyMacroContent = (macro: Macro, variables: Record<string, string>) => {
+    let newContent = macro.content
+    
+    console.log('Starting macro content:', newContent)
+    console.log('Ticket data:', JSON.stringify(ticket, null, 2))
+    console.log('Customer data:', JSON.stringify(customerData, null, 2))
+
+    // Replace built-in variables with null checks
+    const builtInVariables = {
+      '{ticket.id}': ticket?.id || '',
+      '{ticket.title}': ticket?.title || '',
+      '{ticket.status}': ticket?.status || '',
+      '{ticket.priority}': ticket?.priority || '',
+      '{customer.name}': customerData?.user_metadata?.full_name || customerData?.email || ticket?.customer?.user?.user_metadata?.full_name || ticket?.customer?.user?.email || '',
+      '{customer.email}': customerData?.user?.email || ticket?.customer?.user?.email || '',
+      '{agent.name}': ticket?.assigned_agent?.user?.email || '',
+      '{team.name}': ticket?.team?.name || '',
+      '{date}': new Date().toLocaleDateString(),
+      '{time}': new Date().toLocaleTimeString(),
+    }
+
+    console.log('Built-in variables values:', JSON.stringify(builtInVariables, null, 2))
+
+    // Replace all built-in variables
+    Object.entries(builtInVariables).forEach(([key, value]) => {
+      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(escapedKey, 'g')
+      console.log(`Replacing ${key} (escaped as ${escapedKey}) with "${value}"`)
+      newContent = newContent.replace(regex, value)
+      console.log('Content after replacement:', newContent)
     })
+
+    // Replace custom variables
+    Object.entries(variables).forEach(([key, value]) => {
+      console.log(`Replacing custom variable {${key}} with "${value}"`)
+      newContent = newContent.replace(new RegExp(`{${key}}`, 'g'), value)
+      console.log('Content after custom replacement:', newContent)
+    })
+
+    console.log('Final content:', newContent)
     setContent(newContent)
-    setShowTemplates(false)
+    setShowMacros(false)
+    setShowVariableInput(false)
     textareaRef.current?.focus()
+  }
+
+  const handleVariableSubmit = () => {
+    if (!currentMacro) return
+
+    // Check if all variables have values
+    const missingVariables = currentMacro.variables?.filter(v => !variableValues[v]) || []
+    if (missingVariables.length > 0) {
+      toast.error(`Please fill in all variables: ${missingVariables.join(', ')}`)
+      return
+    }
+
+    applyMacroContent(currentMacro, variableValues)
   }
 
   const handleSubmit = async () => {
@@ -152,6 +273,12 @@ export default function TicketResponseComposer({ ticketId, onResponseAdded }: Ti
       setIsLoadingSuggestions(false)
     }
   }
+
+  const filteredMacros = macros.filter(macro => 
+    macro.title.toLowerCase().includes(macroSearch.toLowerCase()) ||
+    macro.description?.toLowerCase().includes(macroSearch.toLowerCase()) ||
+    macro.category?.toLowerCase().includes(macroSearch.toLowerCase())
+  )
 
   useEffect(() => {
     if (error) {
@@ -285,11 +412,11 @@ export default function TicketResponseComposer({ ticketId, onResponseAdded }: Ti
         <div className="flex items-center gap-2">
           <Button 
             variant="outline" 
-            onClick={() => setShowTemplates(true)}
+            onClick={() => setShowMacros(true)}
             className="border-gray-200 hover:border-gray-300 hover:bg-gray-50"
           >
             <FileText className="h-4 w-4 mr-2" />
-            Templates
+            Macros
           </Button>
           <Button 
             onClick={handleSubmit} 
@@ -313,6 +440,110 @@ export default function TicketResponseComposer({ ticketId, onResponseAdded }: Ti
           </Button>
         </div>
       </div>
+
+      {/* Variable Input Dialog */}
+      <Dialog open={showVariableInput} onOpenChange={(open) => {
+        if (!open) {
+          setShowVariableInput(false)
+          setCurrentMacro(null)
+          setVariableValues({})
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enter Variable Values</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {currentMacro?.variables?.map((variable) => (
+              <div key={variable} className="space-y-2">
+                <Label htmlFor={variable}>{variable}</Label>
+                <Input
+                  id={variable}
+                  value={variableValues[variable] || ''}
+                  onChange={(e) => setVariableValues(prev => ({
+                    ...prev,
+                    [variable]: e.target.value
+                  }))}
+                  placeholder={`Enter value for ${variable}`}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowVariableInput(false)
+              setCurrentMacro(null)
+              setVariableValues({})
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleVariableSubmit}>
+              Apply Macro
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Macros Dialog */}
+      <Dialog open={showMacros} onOpenChange={setShowMacros}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Response Macros</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search macros..."
+                value={macroSearch}
+                onChange={(e) => setMacroSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <div className="grid gap-2 max-h-[60vh] overflow-y-auto">
+              {isLoadingMacros ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : filteredMacros.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No macros found
+                </div>
+              ) : (
+                filteredMacros.map(macro => (
+                  <Card key={macro.id} className="cursor-pointer hover:bg-accent/5" onClick={() => applyMacro(macro)}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1">
+                          <h4 className="font-medium">{macro.title}</h4>
+                          {macro.description && (
+                            <p className="text-sm text-muted-foreground">{macro.description}</p>
+                          )}
+                          <div className="flex items-center gap-2 pt-1">
+                            {macro.category && (
+                              <Badge variant="secondary" className="bg-accent/50">
+                                {macro.category}
+                              </Badge>
+                            )}
+                            {macro.team && (
+                              <Badge variant="outline">
+                                {macro.team.name}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Button size="icon" variant="ghost">
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 
