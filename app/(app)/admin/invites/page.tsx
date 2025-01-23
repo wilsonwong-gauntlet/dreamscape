@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { InviteList } from './InviteList'
 
 export default async function InvitesPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {

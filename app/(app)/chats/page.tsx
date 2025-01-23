@@ -3,7 +3,7 @@ import { ChatList } from '@/components/chat/ChatList'
 import { redirect } from 'next/navigation'
 
 export default async function ChatsPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) {

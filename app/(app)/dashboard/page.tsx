@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { DashboardClient } from './DashboardClient'
 
 export default async function DashboardPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const userId = user!.id  // Safe to use ! because of protected layout
 

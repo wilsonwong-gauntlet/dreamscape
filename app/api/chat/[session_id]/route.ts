@@ -6,7 +6,7 @@ export async function POST(
   { params }: { params: { session_id: string } }
 ) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     
     // Verify agent auth
     const { data: { user } } = await supabase.auth.getUser()
