@@ -45,17 +45,24 @@ export default function NewTicketPage() {
 
       if (!customer) throw new Error('Customer record not found')
 
-      const { error: insertError } = await supabase
-        .from('tickets')
-        .insert({
+      const response = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           title,
           description,
           priority,
-          customer_id: customer.id,
-          source: 'web'
+          source: 'web',
+          customer_id: customer.id
         })
+      })
 
-      if (insertError) throw insertError
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to create ticket')
+      }
 
       toast.success('Ticket created successfully')
       router.push('/tickets')

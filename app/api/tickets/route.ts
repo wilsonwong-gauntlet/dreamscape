@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
-import type { Ticket } from '@/types/database'
+import type { Ticket, Database } from '@/types/database'
 import { processTicketWithAI } from '@/lib/ai'
 import { createClient } from '@/utils/supabase/server'
+
+type RoutingResult = Database['public']['Functions']['evaluate_routing_rules']['Returns'][0]
 
 export async function POST(req: Request) {
   try {
@@ -77,14 +79,61 @@ export async function POST(req: Request) {
         .eq('id', ticket.id)
 
     } else {
-      // Route to appropriate team/agent
-      await supabase
-        .from('tickets')
-        .update({
-          team_id: aiResult.suggestedTeamId,
-          status: 'open'
+      // Prepare ticket data for routing rules
+      const ticketData = {
+        title,
+        description,
+        priority: priority || 'medium',
+        source,
+        tags,
+        ...metadata,
+        ...customFields
+      }
+
+      // Evaluate routing rules
+      const { data: routingResult, error: routingError } = await supabase
+        .rpc('evaluate_routing_rules', {
+          ticket_data: ticketData
         })
-        .eq('id', ticket.id)
+        .maybeSingle<RoutingResult>()
+
+      if (routingError) {
+        console.error('Routing error:', routingError)
+        // Continue without routing if there's an error
+      } else if (routingResult) {
+        // Apply the routing rule
+        const updates: Record<string, string> = {}
+        
+        if (routingResult.action === 'assign_team') {
+          updates.team_id = routingResult.action_target
+        } else if (routingResult.action === 'assign_agent') {
+          updates.assigned_agent_id = routingResult.action_target
+        }
+
+        if (Object.keys(updates).length > 0) {
+          const { error: updateError } = await supabase
+            .from('tickets')
+            .update({ ...updates, status: 'open' })
+            .eq('id', ticket.id)
+
+          if (updateError) {
+            console.error('Error applying routing:', updateError)
+          }
+
+          // Add to ticket history
+          await supabase
+            .from('ticket_history')
+            .insert({
+              ticket_id: ticket.id,
+              action: 'route',
+              actor_id: null, // System action
+              changes: {
+                rule_id: routingResult.rule_id,
+                ...updates
+              }
+            })
+        }
+      }
     }
 
     return NextResponse.json(ticket)

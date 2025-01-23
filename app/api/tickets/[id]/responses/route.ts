@@ -2,52 +2,35 @@ import { NextResponse } from 'next/server'
 import type { TicketResponse } from '@/types/database'
 import { createClient } from '@/utils/supabase/server'
 import { cookies } from 'next/headers'
-import { adminAuthClient } from '@/utils/supabase/server'
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const id = (await params).slug
+  const id = (await params).id
   try {
     const supabase = await createClient()
 
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (!user) {
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get ticket data including customer_id
-    const { data: ticket, error: ticketError } = await supabase
-      .from('tickets')
-      .select(`
-        *,
-        customer:customers(
-          id,
-          user_id
-        )
-      `)
-      .eq('id', id)
-      .single()
-
-    if (ticketError) {
-      console.error('Error fetching ticket:', ticketError)
-      return NextResponse.json({ error: 'Failed to fetch ticket' }, { status: 500 })
-    }
-
-    // Get customer user data using admin auth client
-    if (ticket.customer?.user_id) {
-      const { data: customerUser, error: customerError } = await adminAuthClient.getUserById(ticket.customer.user_id)
-      if (customerError) {
-        console.error('Error fetching customer:', customerError)
-      } else {
-        ticket.customer.user = customerUser
-      }
-    }
-
     // Get the response data from the request
-    const { content, type = 'human', is_internal = false } = await request.json()
+    let content, is_internal, type
+    try {
+      const body = await request.json()
+      content = body.content
+      is_internal = body.is_internal ?? false
+      type = body.type ?? 'human'
+    } catch (e) {
+      console.error('Error parsing request body:', e)
+      return NextResponse.json(
+        { error: 'Invalid request body - expected JSON' },
+        { status: 400 }
+      )
+    }
 
     // Validate required fields
     if (!content) {
@@ -55,6 +38,12 @@ export async function POST(
     }
 
     // Validate the ticket exists and user has access
+    const { data: ticket, error: ticketError } = await supabase
+      .from('tickets')
+      .select('*')
+      .eq('id', id)
+      .single()
+
     if (ticketError || !ticket) {
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
     }
@@ -64,19 +53,12 @@ export async function POST(
       .from('ticket_responses')
       .insert({
         ticket_id: id,
+        author_id: user.id,
         content,
         type,
         is_internal,
-        author_id: user.id,
       })
-      .select(`
-        *,
-        author:auth.users(
-          id,
-          email,
-          user_metadata
-        )
-      `)
+      .select()
       .single()
 
     if (responseError) {
@@ -111,9 +93,8 @@ export async function POST(
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ slug: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const id = (await params).slug
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -129,7 +110,7 @@ export async function GET(
     let query = supabase
       .from('ticket_responses')
       .select('*')
-      .eq('ticket_id', id)
+      .eq('ticket_id', params.id)
       .order('created_at', { ascending: true })
 
     if (!includeInternal) {
@@ -160,4 +141,4 @@ export async function GET(
       { status: 500 }
     )
   }
-} 
+}
