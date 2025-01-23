@@ -47,9 +47,11 @@ export interface SavedView {
 export interface ExtendedTicket {
   id: string
   title: string
+  description: string
   status: 'new' | 'open' | 'pending' | 'resolved' | 'closed'
   priority: 'low' | 'medium' | 'high' | 'urgent'
   created_at: string
+  updated_at: string
   customer: { 
     id: string
     user: {
@@ -69,5 +71,7 @@ export interface ExtendedTicket {
   last_response?: {
     author_id: string
     created_at: string
+    is_internal: boolean
+    type: 'human' | 'ai'
   } | null
 } 

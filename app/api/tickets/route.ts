@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { Ticket } from '@/types/database'
 import { processTicketWithAI } from '@/lib/ai'
-import { createClient } from '@/app/utils/server'
+import { createClient } from '@/utils/supabase/server'
 
 export async function POST(req: Request) {
   try {
@@ -112,16 +112,23 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get('limit') || '10')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    // Base query
+    // Base query with last response
     let query = supabase
       .from('tickets')
       .select(`
         *,
-        customer:customers(*),
-        assigned_agent:agents(*),
-        team:teams(*),
-        responses:ticket_responses(*)
+        customer:customers(id, user:auth.users(email)),
+        assigned_agent:agents(id, user:auth.users(email)),
+        team:teams(id, name),
+        last_response:ticket_responses(
+          author_id,
+          created_at,
+          is_internal,
+          type
+        )
       `)
+      .order('created_at', { foreignTable: 'ticket_responses', ascending: false })
+      .limit(1, { foreignTable: 'ticket_responses' })
       
     // Add filters
     if (status) query = query.eq('status', status)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Table,
   TableBody,
@@ -23,7 +23,7 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
-import { MoreHorizontal, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { MoreHorizontal, ArrowUpDown, ChevronLeft, ChevronRight, Clock, AlertTriangle, MessageSquare, User, Users } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -44,6 +44,7 @@ const ITEMS_PER_PAGE = 10
 interface QuickFilter {
   id: string
   label: string
+  icon: React.ReactNode
   filter: (ticket: ExtendedTicket) => boolean
 }
 
@@ -59,90 +60,92 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
   const [selectedTickets, setSelectedTickets] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [isUpdating, setIsUpdating] = useState(false)
-  const [activeFilters, setActiveFilters] = useState<string[]>([])
+  const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [view, setView] = useState<SavedView | null>(null)
 
-  const quickFilters: QuickFilter[] = [
-    { 
-      id: 'my-tickets', 
-      label: 'My Tickets', 
-      filter: (ticket) => ticket.assigned_agent?.id === currentUserId 
+  // Memoize quick filters to prevent recreation on every render
+  const quickFilters = useMemo(() => [
+    {
+      id: 'myTickets',
+      label: 'My Tickets',
+      icon: <User className="w-4 h-4" />,
+      filter: (ticket: ExtendedTicket) => ticket.assigned_agent?.id === currentUserId
     },
-    { 
-      id: 'unassigned', 
-      label: 'Unassigned', 
-      filter: (ticket) => !ticket.assigned_agent 
+    {
+      id: 'unassigned',
+      label: 'Unassigned',
+      icon: <Users className="w-4 h-4" />,
+      filter: (ticket: ExtendedTicket) => !ticket.assigned_agent
     },
-    { 
-      id: 'urgent', 
-      label: 'Urgent', 
-      filter: (ticket) => ticket.priority === 'urgent' 
-    },
-    { 
-      id: 'pending', 
-      label: 'Pending', 
-      filter: (ticket) => ticket.status === 'pending' 
+    {
+      id: 'urgent',
+      label: 'Urgent',
+      icon: <AlertTriangle className="w-4 h-4" />,
+      filter: (ticket: ExtendedTicket) => ticket.priority === 'urgent'
     }
-  ]
+  ], [currentUserId])
 
-  const filteredTickets = tickets.filter(ticket => {
+  // Memoize filtered tickets to prevent unnecessary recalculations
+  const filteredTickets = useMemo(() => {
+    let filtered = tickets
+
     // Apply Quick View filters if a view is selected
     if (view) {
-      const { filters } = view
-      
-      // Check status filter
-      if (filters.status?.length && !filters.status.includes(ticket.status)) {
-        return false
-      }
-      
-      // Check priority filter
-      if (filters.priority?.length && !filters.priority.includes(ticket.priority)) {
-        return false
-      }
-      
-      // Check assignee filter
-      if (filters.assignedTo !== undefined) {
-        if (filters.assignedTo === null && ticket.assigned_agent !== null) {
-          return false
+      filtered = tickets.filter(ticket => {
+        const { filters } = view
+        if (filters.status?.length && !filters.status.includes(ticket.status)) return false
+        if (filters.priority?.length && !filters.priority.includes(ticket.priority)) return false
+        if (filters.assignedTo !== undefined) {
+          if (filters.assignedTo === null && ticket.assigned_agent !== null) return false
+          if (filters.assignedTo !== null && ticket.assigned_agent?.id !== filters.assignedTo) return false
         }
-        if (filters.assignedTo !== null && ticket.assigned_agent?.id !== filters.assignedTo) {
-          return false
+        if (filters.lastResponseBy === 'customer') {
+          if (!ticket.last_response) return true
+          return ticket.last_response.author_id === ticket.customer?.id
         }
+        return true
+      })
+    } else if (activeFilter) {
+      // Apply quick filter if selected
+      const filter = quickFilters.find(f => f.id === activeFilter)
+      if (filter) {
+        filtered = tickets.filter(filter.filter)
       }
-
-      // Check last response filter
-      if (filters.lastResponseBy === 'customer') {
-        // If there's no response yet, include the ticket
-        if (!ticket.last_response) {
-          return true
-        }
-        // Check if the last response was from the customer
-        return ticket.last_response.author_id === ticket.customer?.id
-      }
-
-      return true
+    } else {
+      // Apply regular filters
+      filtered = tickets.filter(ticket => {
+        const statusMatch = filters.status.length === 0 || filters.status.includes(ticket.status)
+        const priorityMatch = filters.priority.length === 0 || filters.priority.includes(ticket.priority)
+        return statusMatch && priorityMatch
+      })
     }
 
-    // Apply regular filters if no view is selected
-    const statusMatch = filters.status.length === 0 || filters.status.includes(ticket.status)
-    const priorityMatch = filters.priority.length === 0 || filters.priority.includes(ticket.priority)
-    return statusMatch && priorityMatch
-  })
+    return filtered
+  }, [tickets, view, activeFilter, filters, quickFilters])
 
-  const sortedTickets = [...filteredTickets].sort((a, b) => {
-    if (sortConfig.key === 'created_at') {
-      return sortConfig.direction === 'asc'
-        ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    }
-    return 0
-  })
+  // Memoize sorted tickets
+  const sortedTickets = useMemo(() => {
+    return [...filteredTickets].sort((a, b) => {
+      if (sortConfig.key === 'created_at') {
+        return sortConfig.direction === 'asc'
+          ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      }
+      return 0
+    })
+  }, [filteredTickets, sortConfig])
 
+  // Calculate pagination
   const totalPages = Math.ceil(sortedTickets.length / ITEMS_PER_PAGE)
   const paginatedTickets = sortedTickets.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   )
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [view, activeFilter, filters])
 
   const requestSort = (key: string) => {
     setSortConfig(current => ({
@@ -379,67 +382,48 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4 p-2 bg-muted rounded-lg">
-        <span className="text-sm font-medium">Quick Views:</span>
-        <div className="flex gap-2">
-          {quickViews.map((quickView) => (
-            <Button
-              key={quickView.id}
-              variant={view?.id === quickView.id ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setView(quickView)}
-              className="h-7"
-            >
-              {quickView.name}
-            </Button>
-          ))}
+      <div className="flex gap-2 mb-4">
+        {quickFilters.map(filter => (
           <Button
-            variant="outline"
+            key={filter.id}
+            variant={activeFilter === filter.id ? "default" : "outline"}
             size="sm"
-            className="h-7"
-            onClick={() => setView(null)}
+            onClick={() => setActiveFilter(activeFilter === filter.id ? null : filter.id)}
+            className="flex items-center gap-2"
           >
-            Clear
+            {filter.icon}
+            {filter.label}
+            <Badge variant="secondary" className="ml-2">
+              {tickets.filter(filter.filter).length}
+            </Badge>
           </Button>
-        </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="py-2">
-            <CardTitle className="text-sm font-medium">Open Tickets</CardTitle>
-          </CardHeader>
-          <CardContent className="py-2">
-            <div className="text-2xl font-bold">
-              {tickets.filter(t => t.status === 'open').length}
-            </div>
-          </CardContent>
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <Card className="p-4">
+          <div className="text-sm text-muted-foreground">Total Open</div>
+          <div className="text-2xl font-bold">
+            {tickets.filter(t => t.status !== 'closed').length}
+          </div>
         </Card>
-        <Card>
-          <CardHeader className="py-2">
-            <CardTitle className="text-sm font-medium">Urgent</CardTitle>
-          </CardHeader>
-          <CardContent className="py-2">
-            <div className="text-2xl font-bold text-red-600">
-              {tickets.filter(t => t.priority === 'urgent').length}
-            </div>
-          </CardContent>
+        <Card className="p-4">
+          <div className="text-sm text-muted-foreground">Unassigned</div>
+          <div className="text-2xl font-bold">
+            {tickets.filter(t => !t.assigned_agent).length}
+          </div>
         </Card>
-        <Card>
-          <CardHeader className="py-2">
-            <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
-          </CardHeader>
-          <CardContent className="py-2">
-            <div className="text-2xl font-bold">2.5h</div>
-          </CardContent>
+        <Card className="p-4">
+          <div className="text-sm text-muted-foreground">Urgent</div>
+          <div className="text-2xl font-bold text-red-600">
+            {tickets.filter(t => t.priority === 'urgent').length}
+          </div>
         </Card>
-        <Card>
-          <CardHeader className="py-2">
-            <CardTitle className="text-sm font-medium">Resolution Rate</CardTitle>
-          </CardHeader>
-          <CardContent className="py-2">
-            <div className="text-2xl font-bold">94%</div>
-          </CardContent>
+        <Card className="p-4">
+          <div className="text-sm text-muted-foreground">My Open</div>
+          <div className="text-2xl font-bold">
+            {tickets.filter(t => t.assigned_agent?.id === currentUserId && t.status !== 'closed').length}
+          </div>
         </Card>
       </div>
 
@@ -541,133 +525,140 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedTickets.map((ticket) => (
-              <TableRow 
-                key={ticket.id}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={(e) => {
-                  if ((e.target as HTMLElement).closest('button, a, input')) {
-                    return
-                  }
-                  window.location.href = `/tickets/${ticket.id}`
-                }}
-              >
-                <TableCell onClick={e => e.stopPropagation()}>
-                  <Checkbox
-                    checked={selectedTickets.includes(ticket.id)}
-                    onCheckedChange={(checked) => handleSelectTicket(ticket.id, checked)}
-                  />
-                </TableCell>
-                <TableCell className="font-mono text-sm">
-                  {ticket.id.slice(0, 8)}
-                </TableCell>
-                <TableCell>
-                  {ticket.title}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {ticket.customer?.user.email || 'Unknown'}
-                </TableCell>
-                <TableCell onClick={e => e.stopPropagation()}>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="p-0 h-auto font-normal">
-                        <Badge
-                          className={statusColors[ticket.status]}
-                        >
-                          {ticket.status}
-                        </Badge>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {(['new', 'open', 'pending', 'resolved', 'closed'] as const).map((status) => (
-                        <DropdownMenuItem
-                          key={status}
-                          onClick={() => handleStatusChange(ticket.id, status)}
-                        >
-                          <Badge className={statusColors[status]} variant="secondary">
-                            {status}
+            {paginatedTickets.map((ticket) => {
+              return (
+                <TableRow 
+                  key={ticket.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('button, a, input')) {
+                      return
+                    }
+                    window.location.href = `/tickets/${ticket.id}`
+                  }}
+                >
+                  <TableCell onClick={e => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedTickets.includes(ticket.id)}
+                      onCheckedChange={(checked) => handleSelectTicket(ticket.id, checked)}
+                    />
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {ticket.id.slice(0, 8)}
+                  </TableCell>
+                  <TableCell>
+                    {ticket.title}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    <div className="flex flex-col">
+                      <span>{ticket.customer?.user?.email || 'Unknown'}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {ticket.customer?.company || 'No company'}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell onClick={e => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="p-0 h-auto font-normal">
+                          <Badge
+                            className={statusColors[ticket.status]}
+                          >
+                            {ticket.status}
                           </Badge>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-                <TableCell onClick={e => e.stopPropagation()}>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="p-0 h-auto font-normal">
-                        <Badge
-                          className={priorityColors[ticket.priority]}
-                        >
-                          {ticket.priority}
-                        </Badge>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      <DropdownMenuLabel>Change Priority</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {(['low', 'medium', 'high', 'urgent'] as const).map((priority) => (
-                        <DropdownMenuItem
-                          key={priority}
-                          onClick={() => handlePriorityChange(ticket.id, priority)}
-                        >
-                          <Badge className={priorityColors[priority]} variant="secondary">
-                            {priority}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {(['new', 'open', 'pending', 'resolved', 'closed'] as const).map((status) => (
+                          <DropdownMenuItem
+                            key={status}
+                            onClick={() => handleStatusChange(ticket.id, status)}
+                          >
+                            <Badge className={statusColors[status]} variant="secondary">
+                              {status}
+                            </Badge>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                  <TableCell onClick={e => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="p-0 h-auto font-normal">
+                          <Badge
+                            className={priorityColors[ticket.priority]}
+                          >
+                            {ticket.priority}
                           </Badge>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuLabel>Change Priority</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {(['low', 'medium', 'high', 'urgent'] as const).map((priority) => (
+                          <DropdownMenuItem
+                            key={priority}
+                            onClick={() => handlePriorityChange(ticket.id, priority)}
+                          >
+                            <Badge className={priorityColors[priority]} variant="secondary">
+                              {priority}
+                            </Badge>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {ticket.team?.name || 'Unassigned'}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {ticket.assigned_agent?.user.email || 'Unassigned'}
+                  </TableCell>
+                  <TableCell onClick={e => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem asChild>
+                          <Link href={`/tickets/${ticket.id}`}>
+                            View Details
+                          </Link>
                         </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {ticket.team?.name || 'Unassigned'}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {ticket.assigned_agent?.user.email || 'Unassigned'}
-                </TableCell>
-                <TableCell onClick={e => e.stopPropagation()}>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                        <Link href={`/tickets/${ticket.id}`}>
-                          View Details
-                        </Link>
-                      </DropdownMenuItem>
-                      
-                      {agents.length > 0 && (
-                        <>
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger>Assign Ticket</DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent>
-                              {agents.map((agent) => (
-                                <DropdownMenuItem
-                                  key={agent.id}
-                                  onClick={() => handleAssignAgent(ticket.id, agent.id)}
-                                >
-                                  {agent.name}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuSubContent>
-                          </DropdownMenuSub>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
+                        
+                        {agents.length > 0 && (
+                          <>
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>Assign Ticket</DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                {agents.map((agent) => (
+                                  <DropdownMenuItem
+                                    key={agent.id}
+                                    onClick={() => handleAssignAgent(ticket.id, agent.id)}
+                                  >
+                                    {agent.name}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </div>
