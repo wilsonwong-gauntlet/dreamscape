@@ -48,16 +48,31 @@ export default async function TicketDetailPage({
 
   // Get user details for response authors
   const authorIds = Array.from(new Set((responses || []).map(r => r.author_id)))
-  const { data: authors } = await supabase
-    .from('auth.users')
-    .select('id, email, raw_user_meta_data')
-    .in('id', authorIds)
+  const authorPromises = authorIds.map(id => adminAuthClient.getUserById(id))
+  const authorResults = await Promise.all(authorPromises)
+  const authors = authorResults
+    .filter(result => result.data?.user !== null)
+    .map(result => {
+      const user = result.data.user!
+      return {
+        id: user.id,
+        email: user.email,
+        user_metadata: user.user_metadata
+      }
+    })
 
   // Map authors to responses
-  const responsesWithAuthors = (responses || []).map(response => ({
-    ...response,
-    author: authors?.find(a => a.id === response.author_id) || null
-  }))
+  const responsesWithAuthors = (responses || []).map(response => {
+    const author = authors?.find(a => a.id === response.author_id)
+    return {
+      ...response,
+      author: author ? {
+        id: author.id,
+        email: author.email || 'unknown@example.com',
+        user_metadata: author.user_metadata
+      } : null
+    }
+  })
 
   // First fetch history entries
   const { data: history, error: historyError } = await supabase
@@ -104,19 +119,28 @@ export default async function TicketDetailPage({
 
   // Then fetch user details for those agents
   const agentIds = agents?.map(agent => agent.id) || []
-  const { data: userDetails } = await supabase
-    .from('auth.users')
-    .select('id, email, raw_user_meta_data')
-    .in('id', agentIds)
+  const agentPromises = agentIds.map(id => adminAuthClient.getUserById(id))
+  const agentResults = await Promise.all(agentPromises)
+  const userDetails = agentResults
+    .filter(result => result.data?.user !== null)
+    .map(result => {
+      const user = result.data.user!
+      return {
+        id: user.id,
+        email: user.email,
+        user_metadata: user.user_metadata
+      }
+    })
 
   // Format agent data
   const formattedAgents = agents?.map(agent => {
     const userInfo = userDetails?.find(u => u.id === agent.id)
-    const name = userInfo?.raw_user_meta_data?.name
+    const name = userInfo?.user_metadata?.name
+    const email = userInfo?.email || 'unknown@example.com'
     return {
       id: agent.id,
-      name: name || userInfo?.email || 'Unknown Agent',
-      email: userInfo?.email,
+      name: name || email || 'Unknown Agent',
+      email,
       team_id: agent.team_id,
       role: agent.role,
       displayName: `${name || 'Unknown'} (${agent.role}${agent.team_id ? ' - ' + (teams?.find(t => t.id === agent.team_id)?.name || '') : ''})`
@@ -180,13 +204,13 @@ export default async function TicketDetailPage({
   // Get assigned agent details if present
   let assignedAgentDetails = null
   if (ticket?.assigned_agent_id) {
-    const { data: agentUser } = await supabase.auth.admin.getUserById(ticket.assigned_agent_id)
+    const { data: agentResult } = await adminAuthClient.getUserById(ticket.assigned_agent_id)
     
-    if (agentUser?.user) {
+    if (agentResult?.user) {
       assignedAgentDetails = {
         ...ticket.assigned_agent,
-        email: agentUser.user.email,
-        name: agentUser.user.user_metadata?.name
+        email: agentResult.user.email || 'unknown@example.com',
+        name: agentResult.user.user_metadata?.name || agentResult.user.email
       }
     }
   }
@@ -195,7 +219,17 @@ export default async function TicketDetailPage({
   const ticketData = {
     ...ticket,
     assigned_agent: assignedAgentDetails,
-    responses: responsesWithAuthors,
+    responses: responsesWithAuthors.map(response => ({
+      ...response,
+      author: response.author ? {
+        ...response.author,
+        email: response.author.email || 'unknown@example.com',
+        user_metadata: {
+          ...response.author.user_metadata,
+          name: response.author.user_metadata?.name || response.author.email
+        }
+      } : null
+    })),
     history: formattedHistory,
     tags: ticket.tags || []
   }
