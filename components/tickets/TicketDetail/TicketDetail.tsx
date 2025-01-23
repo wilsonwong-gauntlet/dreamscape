@@ -93,8 +93,8 @@ interface TicketDetailProps {
   currentUserId: string
   onStatusChange: (status: TicketStatus) => Promise<void>
   onPriorityChange: (priority: TicketPriority) => Promise<void>
-  onTeamChange: (teamId: string) => Promise<void>
-  onAssigneeChange: (agentId: string) => Promise<void>
+  onTeamChange: (teamId: string | null) => Promise<void>
+  onAssigneeChange: (agentId: string | null) => Promise<void>
   onTagsChange: (tags: string[]) => Promise<void>
 }
 
@@ -181,11 +181,31 @@ export default function TicketDetail({
     }
   }
 
-  const handleTeamChange = async (teamId: string) => {
-    const newTeam = teams.find(t => t.id === teamId)
-    if (!newTeam) return
-
+  const handleTeamChange = async (teamId: string | null) => {
     try {
+      // If teamId is null, we're unassigning
+      if (teamId === null) {
+        setTicket(prev => ({
+          ...prev,
+          team: undefined,
+          history: [
+            {
+              id: Date.now().toString(),
+              action: 'update',
+              actor: 'You',
+              timestamp: new Date().toISOString(),
+              details: prev.team ? `Unassigned from team "${prev.team.name}"` : 'Removed team assignment'
+            },
+            ...prev.history
+          ]
+        }))
+        await onTeamChange(null)
+        return
+      }
+
+      const newTeam = teams.find(t => t.id === teamId)
+      if (!newTeam) return
+
       setTicket(prev => ({
         ...prev,
         team: newTeam,
@@ -195,7 +215,9 @@ export default function TicketDetail({
             action: 'update',
             actor: 'You',
             timestamp: new Date().toISOString(),
-            details: `Changed team to "${newTeam.name}"`
+            details: prev.team 
+              ? `Reassigned from team "${prev.team.name}" to "${newTeam.name}"`
+              : `Assigned to team "${newTeam.name}"`
           },
           ...prev.history
         ]
@@ -210,11 +232,33 @@ export default function TicketDetail({
     }
   }
 
-  const handleAssigneeChange = async (agentId: string) => {
-    const newAgent = agents.find(a => a.id === agentId)
-    if (!newAgent) return
-
+  const handleAssigneeChange = async (agentId: string | null) => {
     try {
+      // If agentId is null, we're unassigning
+      if (agentId === null) {
+        setTicket(prev => ({
+          ...prev,
+          assigned_agent: undefined,
+          history: [
+            {
+              id: Date.now().toString(),
+              action: 'update',
+              actor: 'You',
+              timestamp: new Date().toISOString(),
+              details: prev.assigned_agent 
+                ? `Unassigned from agent "${prev.assigned_agent.name || prev.assigned_agent.email}"`
+                : 'Removed agent assignment'
+            },
+            ...prev.history
+          ]
+        }))
+        await onAssigneeChange(null)
+        return
+      }
+
+      const newAgent = agents.find(a => a.id === agentId)
+      if (!newAgent) return
+
       setTicket(prev => ({
         ...prev,
         assigned_agent: {
@@ -228,7 +272,9 @@ export default function TicketDetail({
             action: 'update',
             actor: 'You',
             timestamp: new Date().toISOString(),
-            details: `Assigned to "${newAgent.name || newAgent.email}"`
+            details: prev.assigned_agent
+              ? `Reassigned from "${prev.assigned_agent.name || prev.assigned_agent.email}" to "${newAgent.name || newAgent.email}"`
+              : `Assigned to agent "${newAgent.name || newAgent.email}"`
           },
           ...prev.history
         ]
@@ -406,18 +452,25 @@ export default function TicketDetail({
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[180px]">
+            <DropdownMenuContent align="start" className="w-[240px]">
               <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-gray-500">Update Status</DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-gray-100" />
               {(['new', 'open', 'pending', 'resolved', 'closed'] as const).map(status => (
                 <DropdownMenuItem
                   key={status}
                   onClick={() => handleStatusChange(status)}
-                  className="gap-2 cursor-pointer hover:bg-gray-50"
+                  className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50"
                 >
-                  <Badge className={`${statusColors[status]} shadow-sm font-medium`}>
+                  <Badge className={`${statusColors[status]} shadow-sm font-medium min-w-[80px] justify-center`}>
                     {status}
                   </Badge>
+                  <span className="text-sm text-gray-600">
+                    {status === 'new' ? 'Newly created ticket' :
+                     status === 'open' ? 'Actively being worked on' :
+                     status === 'pending' ? 'Waiting on customer' :
+                     status === 'resolved' ? 'Solution provided' :
+                     'Ticket completed'}
+                  </span>
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -446,18 +499,24 @@ export default function TicketDetail({
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[180px]">
+            <DropdownMenuContent align="start" className="w-[240px]">
               <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-gray-500">Set Priority</DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-gray-100" />
               {(['low', 'medium', 'high', 'urgent'] as const).map(priority => (
                 <DropdownMenuItem
                   key={priority}
                   onClick={() => handlePriorityChange(priority)}
-                  className="gap-2 cursor-pointer hover:bg-gray-50"
+                  className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50"
                 >
-                  <Badge className={`${priorityColors[priority]} shadow-sm font-medium`}>
+                  <Badge className={`${priorityColors[priority]} shadow-sm font-medium min-w-[80px] justify-center`}>
                     {priority}
                   </Badge>
+                  <span className="text-sm text-gray-600">
+                    {priority === 'low' ? 'Non-urgent issue' :
+                     priority === 'medium' ? 'Normal priority' :
+                     priority === 'high' ? 'Important issue' :
+                     'Critical issue'}
+                  </span>
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -483,16 +542,32 @@ export default function TicketDetail({
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[180px]">
+            <DropdownMenuContent align="start" className="w-[240px]">
               <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-gray-500">Assign Team</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-gray-100" />
+              <DropdownMenuItem
+                onClick={() => handleTeamChange(null)}
+                className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50"
+              >
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100">
+                  <User className="h-4 w-4 text-gray-400" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm text-gray-600 italic">Unassigned</span>
+                  <span className="text-xs text-gray-400">Remove team assignment</span>
+                </div>
+              </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-gray-100" />
               {teams.map(team => (
                 <DropdownMenuItem
                   key={team.id}
                   onClick={() => handleTeamChange(team.id)}
-                  className="cursor-pointer hover:bg-gray-50 text-gray-700"
+                  className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50"
                 >
-                  {team.name}
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 font-medium">
+                    {team.name.slice(0, 2).toUpperCase()}
+                  </div>
+                  <span className="text-sm text-gray-700">{team.name}</span>
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -518,18 +593,76 @@ export default function TicketDetail({
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[180px]">
+            <DropdownMenuContent align="start" className="w-[280px]">
               <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-gray-500">Assign Agent</DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-gray-100" />
-              {agents.map(agent => (
-                <DropdownMenuItem
-                  key={agent.id}
-                  onClick={() => handleAssigneeChange(agent.id)}
-                  className="cursor-pointer hover:bg-gray-50 text-gray-700"
-                >
-                  {agent.name || agent.email}
-                </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleAssigneeChange(null)}
+                className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50"
+              >
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100">
+                  <User className="h-4 w-4 text-gray-400" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm text-gray-600 italic">Unassigned</span>
+                  <span className="text-xs text-gray-400">Remove agent assignment</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-gray-100" />
+              {teams.map(team => (
+                <div key={team.id}>
+                  <DropdownMenuLabel className="px-2 py-1.5 text-[11px] uppercase tracking-wider text-gray-400 bg-gray-50/80">
+                    {team.name}
+                  </DropdownMenuLabel>
+                  {agents
+                    .filter(agent => agent.team_id === team.id)
+                    .map(agent => (
+                      <DropdownMenuItem
+                        key={agent.id}
+                        onClick={() => handleAssigneeChange(agent.id)}
+                        className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50"
+                      >
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 font-medium">
+                          {(agent.name || agent.email).slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          {agent.name && (
+                            <span className="text-sm text-gray-700 truncate">{agent.name}</span>
+                          )}
+                          <span className="text-xs text-gray-400 truncate">{agent.email}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))
+                  }
+                </div>
               ))}
+              {agents.filter(agent => !agent.team_id).length > 0 && (
+                <div>
+                  <DropdownMenuLabel className="px-2 py-1.5 text-[11px] uppercase tracking-wider text-gray-400 bg-gray-50/80">
+                    Unassigned Agents
+                  </DropdownMenuLabel>
+                  {agents
+                    .filter(agent => !agent.team_id)
+                    .map(agent => (
+                      <DropdownMenuItem
+                        key={agent.id}
+                        onClick={() => handleAssigneeChange(agent.id)}
+                        className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50"
+                      >
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-50 text-gray-600 font-medium">
+                          {(agent.name || agent.email).slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          {agent.name && (
+                            <span className="text-sm text-gray-700 truncate">{agent.name}</span>
+                          )}
+                          <span className="text-xs text-gray-400 truncate">{agent.email}</span>
+                        </div>
+                      </DropdownMenuItem>
+                    ))
+                  }
+                </div>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
