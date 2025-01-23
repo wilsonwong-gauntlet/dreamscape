@@ -42,7 +42,7 @@ export default function TicketResponseList({ responses }: TicketResponseListProp
         // Get display name
         const displayName = response.author?.user_metadata?.name || 
                           response.author?.email || 
-                          'Unknown User'
+                          'System'
 
         return (
           <Card key={response.id}>

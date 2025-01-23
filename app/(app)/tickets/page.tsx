@@ -1,5 +1,5 @@
-import { createClient } from '@/app/utils/server'
-import { TicketTable } from '@/components/TicketTable'
+import { createClient, adminAuthClient } from '@/utils/supabase/server'
+import TicketTable from '@/components/tickets/TicketList/TicketTable'
 import { cookies } from 'next/headers'
 
 export default async function TicketsPage() {
@@ -26,10 +26,7 @@ export default async function TicketsPage() {
     .from('tickets')
     .select(`
       *,
-      customers (
-        id,
-        company
-      ),
+      customer:customers(id),
       agents (
         id,
         team_id
@@ -50,6 +47,30 @@ export default async function TicketsPage() {
   }
   console.log('Tickets fetched:', tickets?.length || 0)
 
+  // Fetch customer details using adminAuthClient
+  const customerIds = Array.from(new Set(tickets?.map(t => t.customer?.id) || []))
+  const customerPromises = customerIds.map(id => id ? adminAuthClient.getUserById(id) : null)
+  const customerResults = await Promise.all(customerPromises.filter(Boolean))
+  const customerDetails = customerResults
+    .filter(result => result?.data?.user)
+    .map(result => {
+      const user = result!.data.user!
+      return {
+        id: user.id,
+        email: user.email,
+        user_metadata: user.user_metadata
+      }
+    })
+
+  // Map customer details to tickets
+  const ticketsWithCustomers = tickets?.map(ticket => ({
+    ...ticket,
+    customer: ticket.customer ? {
+      ...ticket.customer,
+      user: customerDetails.find(c => c.id === ticket.customer?.id) || { email: 'unknown@example.com' }
+    } : null
+  })) || []
+
   return (
     <div className="container mx-auto py-10">
       <div className="flex justify-between items-center mb-8">
@@ -61,7 +82,7 @@ export default async function TicketsPage() {
           New Ticket
         </a>
       </div>
-      <TicketTable tickets={tickets || []} />
+      <TicketTable tickets={ticketsWithCustomers} />
     </div>
   )
 } 

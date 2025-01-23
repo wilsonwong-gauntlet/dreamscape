@@ -18,6 +18,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { MoreHorizontal, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -209,6 +212,81 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
     }
   }
 
+  const handleStatusChange = async (ticketId: string, newStatus: string) => {
+    try {
+      setIsUpdating(true)
+      const response = await fetch(`/api/tickets/${ticketId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update status')
+      }
+
+      toast.success('Status updated successfully')
+      window.location.reload()
+    } catch (error) {
+      console.error('Error updating status:', error)
+      toast.error('Failed to update status')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const handleAssignAgent = async (ticketId: string, agentId: string) => {
+    try {
+      setIsUpdating(true)
+      const response = await fetch(`/api/tickets/${ticketId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ assigned_agent_id: agentId })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to assign ticket')
+      }
+
+      toast.success('Ticket assigned successfully')
+      window.location.reload()
+    } catch (error) {
+      console.error('Error assigning ticket:', error)
+      toast.error('Failed to assign ticket')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const handlePriorityChange = async (ticketId: string, newPriority: string) => {
+    try {
+      setIsUpdating(true)
+      const response = await fetch(`/api/tickets/${ticketId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ priority: newPriority })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update priority')
+      }
+
+      toast.success('Priority updated successfully')
+      window.location.reload()
+    } catch (error) {
+      console.error('Error updating priority:', error)
+      toast.error('Failed to update priority')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   const statusColors = {
     new: 'bg-blue-500 text-white',
     open: 'bg-yellow-500 text-white',
@@ -324,8 +402,18 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
           </TableHeader>
           <TableBody>
             {paginatedTickets.map((ticket) => (
-              <TableRow key={ticket.id}>
-                <TableCell>
+              <TableRow 
+                key={ticket.id}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={(e) => {
+                  // Don't navigate if clicking on interactive elements
+                  if ((e.target as HTMLElement).closest('button, a, input')) {
+                    return
+                  }
+                  window.location.href = `/tickets/${ticket.id}`
+                }}
+              >
+                <TableCell onClick={e => e.stopPropagation()}>
                   <Checkbox
                     checked={selectedTickets.includes(ticket.id)}
                     onCheckedChange={(checked) => handleSelectTicket(ticket.id, checked)}
@@ -335,29 +423,64 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
                   {ticket.id.slice(0, 8)}
                 </TableCell>
                 <TableCell>
-                  <Link
-                    href={`/tickets/${ticket.id}`}
-                    className="hover:underline"
-                  >
-                    {ticket.title}
-                  </Link>
+                  {ticket.title}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {ticket.customer?.user.email || 'Unknown'}
                 </TableCell>
-                <TableCell>
-                  <Badge
-                    className={statusColors[ticket.status]}
-                  >
-                    {ticket.status}
-                  </Badge>
+                <TableCell onClick={e => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="p-0 h-auto font-normal">
+                        <Badge
+                          className={statusColors[ticket.status]}
+                        >
+                          {ticket.status}
+                        </Badge>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {(['new', 'open', 'pending', 'resolved', 'closed'] as const).map((status) => (
+                        <DropdownMenuItem
+                          key={status}
+                          onClick={() => handleStatusChange(ticket.id, status)}
+                        >
+                          <Badge className={statusColors[status]} variant="secondary">
+                            {status}
+                          </Badge>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
-                <TableCell>
-                  <Badge
-                    className={priorityColors[ticket.priority]}
-                  >
-                    {ticket.priority}
-                  </Badge>
+                <TableCell onClick={e => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="p-0 h-auto font-normal">
+                        <Badge
+                          className={priorityColors[ticket.priority]}
+                        >
+                          {ticket.priority}
+                        </Badge>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuLabel>Change Priority</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {(['low', 'medium', 'high', 'urgent'] as const).map((priority) => (
+                        <DropdownMenuItem
+                          key={priority}
+                          onClick={() => handlePriorityChange(ticket.id, priority)}
+                        >
+                          <Badge className={priorityColors[priority]} variant="secondary">
+                            {priority}
+                          </Badge>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}
@@ -365,7 +488,7 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
                 <TableCell className="text-sm text-muted-foreground">
                   {ticket.team?.name || 'Unassigned'}
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={e => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">
@@ -380,8 +503,24 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
                           View Details
                         </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem>Assign Ticket</DropdownMenuItem>
-                      <DropdownMenuItem>Change Status</DropdownMenuItem>
+                      
+                      {agents.length > 0 && (
+                        <>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>Assign Ticket</DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              {agents.map((agent) => (
+                                <DropdownMenuItem
+                                  key={agent.id}
+                                  onClick={() => handleAssignAgent(ticket.id, agent.id)}
+                                >
+                                  {agent.name}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
