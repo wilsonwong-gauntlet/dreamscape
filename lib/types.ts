@@ -31,4 +31,43 @@ export interface RealtimePayload<T> {
   old: T | null
   schema: string
   table: string
+}
+
+export interface SavedView {
+  id: string
+  name: string
+  filters: {
+    status?: string[]
+    priority?: string[]
+    assignedTo?: string | null
+    lastResponseBy?: string
+  }
+}
+
+export interface ExtendedTicket {
+  id: string
+  title: string
+  status: 'new' | 'open' | 'pending' | 'resolved' | 'closed'
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  created_at: string
+  customer: { 
+    id: string
+    user: {
+      email: string
+    }
+  } | null
+  assigned_agent: { 
+    id: string
+    user: {
+      email: string
+    }
+  } | null
+  team: { 
+    id: string
+    name: string 
+  } | null
+  last_response?: {
+    author_id: string
+    created_at: string
+  } | null
 } 

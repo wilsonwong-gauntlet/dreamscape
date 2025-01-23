@@ -166,9 +166,9 @@ export default async function TicketDetailPage({
         const teamName = teams?.find(t => t.id === changes.team_id)?.name
         details = `Assigned to team "${teamName || changes.team_id}"`
       } else if ('assigned_agent_id' in changes) {
-        const agent = agents?.find(a => a.id === changes.assigned_agent_id)
-        const agentName = agent?.name || changes.assigned_agent_id
-        details = `Assigned to agent "${agentName}"`
+        // Find agent details in the userDetails array since we already fetched them
+        const agentUser = userDetails?.find(u => u.id === changes.assigned_agent_id)
+        details = `Assigned to agent "${agentUser?.user_metadata?.name || agentUser?.email || changes.assigned_agent_id}"`
       } else if ('tags' in changes) {
         const tagList = Array.isArray(changes.tags) ? changes.tags.join(', ') : changes.tags
         details = `Updated tags to [${tagList}]`

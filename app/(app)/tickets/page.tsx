@@ -20,6 +20,8 @@ export default async function TicketsPage() {
   }
   console.log('User found:', user.id)
 
+  const currentUserId = user?.id
+
   console.log('Building ticket query')
   // Fetch tickets based on user's role
   let query = supabase
@@ -27,16 +29,15 @@ export default async function TicketsPage() {
     .select(`
       *,
       customer:customers(id),
-      agents (
-        id,
-        team_id
-      ),
-      teams (
-        id,
-        name
+      assigned_agent:agents(id),
+      team:teams(id, name),
+      last_response:ticket_responses(
+        author_id,
+        created_at
       )
     `)
     .order('created_at', { ascending: false })
+    .limit(1, { foreignTable: 'ticket_responses' })
 
   console.log('Executing ticket query')
   const { data: tickets, error: ticketsError } = await query
@@ -62,14 +63,44 @@ export default async function TicketsPage() {
       }
     })
 
-  // Map customer details to tickets
-  const ticketsWithCustomers = tickets?.map(ticket => ({
+  // Fetch assigned agent details using adminAuthClient
+  const agentIds = Array.from(new Set(tickets?.map(t => t.assigned_agent?.id).filter(Boolean) || []))
+  const agentPromises = agentIds.map(id => adminAuthClient.getUserById(id))
+  const agentResults = await Promise.all(agentPromises)
+  const agentDetails = agentResults
+    .filter(result => result?.data?.user)
+    .map(result => {
+      const user = result!.data.user!
+      return {
+        id: user.id,
+        email: user.email,
+        user_metadata: user.user_metadata
+      }
+    })
+
+  // Map customer and agent details to tickets
+  const ticketsWithDetails = tickets?.map(ticket => ({
     ...ticket,
     customer: ticket.customer ? {
       ...ticket.customer,
       user: customerDetails.find(c => c.id === ticket.customer?.id) || { email: 'unknown@example.com' }
-    } : null
+    } : null,
+    assigned_agent: ticket.assigned_agent ? {
+      ...ticket.assigned_agent,
+      user: agentDetails.find(a => a.id === ticket.assigned_agent?.id) || { email: 'unknown@example.com' }
+    } : null,
+    last_response: ticket.last_response?.[0] || null
   })) || []
+
+  // Fetch teams
+  const { data: teams } = await supabase
+    .from('teams')
+    .select('id, name')
+
+  // Fetch agents
+  const { data: agents } = await supabase
+    .from('agents')
+    .select('id, name, email, team_id')
 
   return (
     <div className="container mx-auto py-10">
@@ -82,7 +113,12 @@ export default async function TicketsPage() {
           New Ticket
         </a>
       </div>
-      <TicketTable tickets={ticketsWithCustomers} />
+      <TicketTable 
+        tickets={ticketsWithDetails} 
+        teams={teams || []}
+        agents={agents || []}
+        currentUserId={currentUserId || ''}
+      />
     </div>
   )
 } 

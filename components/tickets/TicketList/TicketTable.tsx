@@ -28,41 +28,26 @@ import { formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import TicketFilters, { TicketFilters as FilterOptions } from './TicketFilters'
-
-interface ExtendedTicket {
-  id: string
-  title: string
-  status: 'new' | 'open' | 'pending' | 'resolved' | 'closed'
-  priority: 'low' | 'medium' | 'high' | 'urgent'
-  created_at: string
-  customer: { 
-    id: string
-    user: {
-      email: string
-    }
-  } | null
-  assigned_agent: { 
-    id: string
-    user: {
-      email: string
-    }
-  } | null
-  team: { 
-    id: string
-    name: string 
-  } | null
-}
+import { SavedView, ExtendedTicket } from '@/lib/types'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 
 interface TicketTableProps {
   tickets: ExtendedTicket[]
   isLoading?: boolean
   teams?: { id: string; name: string }[]
   agents?: { id: string; name: string; email: string }[]
+  currentUserId: string
 }
 
 const ITEMS_PER_PAGE = 10
 
-export default function TicketTable({ tickets, isLoading, teams = [], agents = [] }: TicketTableProps) {
+interface QuickFilter {
+  id: string
+  label: string
+  filter: (ticket: ExtendedTicket) => boolean
+}
+
+export default function TicketTable({ tickets, isLoading, teams = [], agents = [], currentUserId }: TicketTableProps) {
   const [sortConfig, setSortConfig] = useState({
     key: 'created_at',
     direction: 'desc'
@@ -74,8 +59,71 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
   const [selectedTickets, setSelectedTickets] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [activeFilters, setActiveFilters] = useState<string[]>([])
+  const [view, setView] = useState<SavedView | null>(null)
+
+  const quickFilters: QuickFilter[] = [
+    { 
+      id: 'my-tickets', 
+      label: 'My Tickets', 
+      filter: (ticket) => ticket.assigned_agent?.id === currentUserId 
+    },
+    { 
+      id: 'unassigned', 
+      label: 'Unassigned', 
+      filter: (ticket) => !ticket.assigned_agent 
+    },
+    { 
+      id: 'urgent', 
+      label: 'Urgent', 
+      filter: (ticket) => ticket.priority === 'urgent' 
+    },
+    { 
+      id: 'pending', 
+      label: 'Pending', 
+      filter: (ticket) => ticket.status === 'pending' 
+    }
+  ]
 
   const filteredTickets = tickets.filter(ticket => {
+    // Apply Quick View filters if a view is selected
+    if (view) {
+      const { filters } = view
+      
+      // Check status filter
+      if (filters.status?.length && !filters.status.includes(ticket.status)) {
+        return false
+      }
+      
+      // Check priority filter
+      if (filters.priority?.length && !filters.priority.includes(ticket.priority)) {
+        return false
+      }
+      
+      // Check assignee filter
+      if (filters.assignedTo !== undefined) {
+        if (filters.assignedTo === null && ticket.assigned_agent !== null) {
+          return false
+        }
+        if (filters.assignedTo !== null && ticket.assigned_agent?.id !== filters.assignedTo) {
+          return false
+        }
+      }
+
+      // Check last response filter
+      if (filters.lastResponseBy === 'customer') {
+        // If there's no response yet, include the ticket
+        if (!ticket.last_response) {
+          return true
+        }
+        // Check if the last response was from the customer
+        return ticket.last_response.author_id === ticket.customer?.id
+      }
+
+      return true
+    }
+
+    // Apply regular filters if no view is selected
     const statusMatch = filters.status.length === 0 || filters.status.includes(ticket.status)
     const priorityMatch = filters.priority.length === 0 || filters.priority.includes(ticket.priority)
     return statusMatch && priorityMatch
@@ -302,8 +350,99 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
     urgent: 'bg-red-500 text-white',
   }
 
+  const quickViews = [
+    { 
+      id: 'my-open', 
+      name: 'My Open Tickets',
+      filters: {
+        status: ['open', 'pending'],
+        assignedTo: currentUserId
+      }
+    },
+    { 
+      id: 'urgent-unassigned', 
+      name: 'Urgent & Unassigned',
+      filters: {
+        priority: ['urgent'],
+        assignedTo: null
+      }
+    },
+    {
+      id: 'needs-response',
+      name: 'Needs Response',
+      filters: {
+        status: ['open'],
+        lastResponseBy: 'customer'
+      }
+    }
+  ]
+
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-4 p-2 bg-muted rounded-lg">
+        <span className="text-sm font-medium">Quick Views:</span>
+        <div className="flex gap-2">
+          {quickViews.map((quickView) => (
+            <Button
+              key={quickView.id}
+              variant={view?.id === quickView.id ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setView(quickView)}
+              className="h-7"
+            >
+              {quickView.name}
+            </Button>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7"
+            onClick={() => setView(null)}
+          >
+            Clear
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="py-2">
+            <CardTitle className="text-sm font-medium">Open Tickets</CardTitle>
+          </CardHeader>
+          <CardContent className="py-2">
+            <div className="text-2xl font-bold">
+              {tickets.filter(t => t.status === 'open').length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="py-2">
+            <CardTitle className="text-sm font-medium">Urgent</CardTitle>
+          </CardHeader>
+          <CardContent className="py-2">
+            <div className="text-2xl font-bold text-red-600">
+              {tickets.filter(t => t.priority === 'urgent').length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="py-2">
+            <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
+          </CardHeader>
+          <CardContent className="py-2">
+            <div className="text-2xl font-bold">2.5h</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="py-2">
+            <CardTitle className="text-sm font-medium">Resolution Rate</CardTitle>
+          </CardHeader>
+          <CardContent className="py-2">
+            <div className="text-2xl font-bold">94%</div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex justify-between items-center">
         <TicketFilters onFilterChange={setFilters} />
         <div className="flex items-center gap-4">
@@ -397,6 +536,7 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
                 </Button>
               </TableHead>
               <TableHead>Team</TableHead>
+              <TableHead>Assigned To</TableHead>
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -406,7 +546,6 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
                 key={ticket.id}
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={(e) => {
-                  // Don't navigate if clicking on interactive elements
                   if ((e.target as HTMLElement).closest('button, a, input')) {
                     return
                   }
@@ -487,6 +626,9 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {ticket.team?.name || 'Unassigned'}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {ticket.assigned_agent?.user.email || 'Unassigned'}
                 </TableCell>
                 <TableCell onClick={e => e.stopPropagation()}>
                   <DropdownMenu>

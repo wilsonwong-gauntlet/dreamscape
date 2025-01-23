@@ -27,19 +27,19 @@ import type { Ticket } from "@/types/database"
 import TicketResponseList from "./TicketResponseList"
 import TicketResponseComposer from "./TicketResponseComposer"
 import { Input } from "@/components/ui/input"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { TicketActions } from "@/components/tickets/TicketActions"
+import { toast } from "sonner"
+
+type TicketStatus = 'new' | 'open' | 'pending' | 'resolved' | 'closed'
+type TicketPriority = 'low' | 'medium' | 'high' | 'urgent'
 
 interface Response {
   id: string
-  ticket_id: string
-  author_id: string
   content: string
-  type: 'human' | 'ai'
+  type: 'ai' | 'human'
   is_internal: boolean
-  metadata: Record<string, any>
   created_at: string
-  updated_at: string
   author?: {
     id: string
     email: string
@@ -49,18 +49,37 @@ interface Response {
   }
 }
 
-interface TicketDetailProps {
-  ticket: Ticket & {
-    tags: string[]
-    history: {
-      id: string
-      action: string
-      actor: string
-      timestamp: string
-      details?: string
-    }[]
-    responses: Response[]
+interface HistoryEntry {
+  id: string
+  action: string
+  actor: string
+  timestamp: string
+  details?: string
+}
+
+interface LocalTicket {
+  id: string
+  title: string
+  description: string
+  status: TicketStatus
+  priority: TicketPriority
+  created_at: string
+  team?: {
+    id: string
+    name: string
   }
+  assigned_agent?: {
+    id: string
+    name?: string
+    email: string
+  }
+  tags: string[]
+  history: HistoryEntry[]
+  responses: Response[]
+}
+
+interface TicketDetailProps {
+  ticket: LocalTicket
   teams: {
     id: string
     name: string
@@ -72,8 +91,8 @@ interface TicketDetailProps {
     team_id: string | null
   }[]
   currentUserId: string
-  onStatusChange: (status: string) => Promise<void>
-  onPriorityChange: (priority: string) => Promise<void>
+  onStatusChange: (status: TicketStatus) => Promise<void>
+  onPriorityChange: (priority: TicketPriority) => Promise<void>
   onTeamChange: (teamId: string) => Promise<void>
   onAssigneeChange: (agentId: string) => Promise<void>
   onTagsChange: (tags: string[]) => Promise<void>
@@ -82,7 +101,7 @@ interface TicketDetailProps {
 const ITEMS_PER_PAGE = 5
 
 export default function TicketDetail({
-  ticket,
+  ticket: initialTicket,
   teams,
   agents,
   currentUserId,
@@ -92,6 +111,7 @@ export default function TicketDetail({
   onAssigneeChange,
   onTagsChange,
 }: TicketDetailProps) {
+  const [ticket, setTicket] = useState<LocalTicket>(initialTicket)
   const [newTag, setNewTag] = useState("")
   const [responseKey, setResponseKey] = useState(0)
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(true)
@@ -104,7 +124,163 @@ export default function TicketDetail({
   // Initialize to last page
   const [historyPage, setHistoryPage] = useState(totalHistoryPages || 1)
   const [responsesPage, setResponsesPage] = useState(totalResponsePages || 1)
+
+  useEffect(() => {
+    setTicket(initialTicket)
+  }, [initialTicket])
   
+  const handleStatusChange = async (newStatus: TicketStatus) => {
+    try {
+      setTicket(prev => ({
+        ...prev,
+        status: newStatus,
+        history: [
+          {
+            id: Date.now().toString(),
+            action: 'update',
+            actor: 'You',
+            timestamp: new Date().toISOString(),
+            details: `Changed status to "${newStatus}"`
+          },
+          ...prev.history
+        ]
+      }))
+      await onStatusChange(newStatus)
+    } catch (error) {
+      setTicket(prev => ({
+        ...prev,
+        status: prev.status
+      }))
+      toast.error("Failed to update status")
+    }
+  }
+
+  const handlePriorityChange = async (newPriority: TicketPriority) => {
+    try {
+      setTicket(prev => ({
+        ...prev,
+        priority: newPriority,
+        history: [
+          {
+            id: Date.now().toString(),
+            action: 'update',
+            actor: 'You',
+            timestamp: new Date().toISOString(),
+            details: `Changed priority to "${newPriority}"`
+          },
+          ...prev.history
+        ]
+      }))
+      await onPriorityChange(newPriority)
+    } catch (error) {
+      setTicket(prev => ({
+        ...prev,
+        priority: prev.priority
+      }))
+      toast.error("Failed to update priority")
+    }
+  }
+
+  const handleTeamChange = async (teamId: string) => {
+    const newTeam = teams.find(t => t.id === teamId)
+    if (!newTeam) return
+
+    try {
+      setTicket(prev => ({
+        ...prev,
+        team: newTeam,
+        history: [
+          {
+            id: Date.now().toString(),
+            action: 'update',
+            actor: 'You',
+            timestamp: new Date().toISOString(),
+            details: `Changed team to "${newTeam.name}"`
+          },
+          ...prev.history
+        ]
+      }))
+      await onTeamChange(teamId)
+    } catch (error) {
+      setTicket(prev => ({
+        ...prev,
+        team: prev.team
+      }))
+      toast.error("Failed to update team")
+    }
+  }
+
+  const handleAssigneeChange = async (agentId: string) => {
+    const newAgent = agents.find(a => a.id === agentId)
+    if (!newAgent) return
+
+    try {
+      setTicket(prev => ({
+        ...prev,
+        assigned_agent: {
+          id: newAgent.id,
+          name: newAgent.name,
+          email: newAgent.email
+        },
+        history: [
+          {
+            id: Date.now().toString(),
+            action: 'update',
+            actor: 'You',
+            timestamp: new Date().toISOString(),
+            details: `Assigned to "${newAgent.name || newAgent.email}"`
+          },
+          ...prev.history
+        ]
+      }))
+      await onAssigneeChange(agentId)
+    } catch (error) {
+      setTicket(prev => ({
+        ...prev,
+        assigned_agent: prev.assigned_agent
+      }))
+      toast.error("Failed to update assignee")
+    }
+  }
+
+  const handleTagsChange = async (newTags: string[]) => {
+    try {
+      setTicket(prev => ({
+        ...prev,
+        tags: newTags,
+        history: [
+          {
+            id: Date.now().toString(),
+            action: 'update',
+            actor: 'You',
+            timestamp: new Date().toISOString(),
+            details: `Updated tags`
+          },
+          ...prev.history
+        ]
+      }))
+      await onTagsChange(newTags)
+    } catch (error) {
+      setTicket(prev => ({
+        ...prev,
+        tags: prev.tags
+      }))
+      toast.error("Failed to update tags")
+    }
+  }
+
+  const addTag = async () => {
+    if (!newTag.trim()) return
+    const updatedTags = [...ticket.tags, newTag.trim()]
+    await handleTagsChange(updatedTags)
+    setNewTag("")
+  }
+
+  const removeTag = async (tagToRemove: string) => {
+    const updatedTags = ticket.tags.filter(tag => tag !== tagToRemove)
+    await handleTagsChange(updatedTags)
+  }
+
   const paginatedHistory = ticket.history?.slice(
     (historyPage - 1) * ITEMS_PER_PAGE,
     historyPage * ITEMS_PER_PAGE
@@ -115,32 +291,19 @@ export default function TicketDetail({
     responsesPage * ITEMS_PER_PAGE
   )
 
-  const statusColors = {
-    new: "bg-blue-500",
-    open: "bg-yellow-500",
-    pending: "bg-purple-500",
-    resolved: "bg-green-500",
-    closed: "bg-gray-500",
+  const statusColors: Record<TicketStatus, string> = {
+    new: "bg-blue-500 text-white",
+    open: "bg-green-500 text-white",
+    pending: "bg-yellow-500 text-white",
+    resolved: "bg-purple-500 text-white",
+    closed: "bg-gray-500 text-white",
   }
 
-  const priorityColors = {
-    low: "bg-blue-100 text-blue-800",
-    medium: "bg-yellow-100 text-yellow-800",
-    high: "bg-red-100 text-red-800",
+  const priorityColors: Record<TicketPriority, string> = {
+    low: "bg-gray-500 text-white",
+    medium: "bg-yellow-500 text-white",
+    high: "bg-orange-500 text-white",
     urgent: "bg-red-500 text-white",
-  }
-
-  const handleAddTag = () => {
-    if (newTag.trim() && !ticket.tags.includes(newTag.trim())) {
-      const updatedTags = [...ticket.tags, newTag.trim()]
-      onTagsChange(updatedTags)
-      setNewTag("")
-    }
-  }
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    const updatedTags = ticket.tags.filter(tag => tag !== tagToRemove)
-    onTagsChange(updatedTags)
   }
 
   const handleResponseAdded = () => {
@@ -148,258 +311,271 @@ export default function TicketDetail({
     setResponseKey(prev => prev + 1)
   }
 
-  return (
-    <div className="space-y-8 max-w-5xl mx-auto px-4 py-6">
-      {/* Header Section */}
-      <div className="flex items-start justify-between space-y-2">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">{ticket.title}</h1>
-          <div className="text-sm text-muted-foreground flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Created {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}
-          </div>
+  const renderHistoryEntry = (entry: HistoryEntry) => {
+    return (
+      <div key={entry.id} className="flex items-start space-x-2 py-2">
+        <div className="flex-1">
+          <p className="text-sm text-gray-600">
+            {entry.actor} {entry.details}
+          </p>
+          <p className="text-xs text-gray-400">
+            {formatDistanceToNow(new Date(entry.timestamp))} ago
+          </p>
         </div>
-        <Button variant="outline" onClick={() => window.history.back()} className="shrink-0">
-          Back to Tickets
-        </Button>
       </div>
+    )
+  }
 
-      {/* Actions Section */}
-      <Card className="border-2">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-semibold">Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-6">
-            {/* Status Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="min-w-[120px]">
-                  <Badge className={`${statusColors[ticket.status]} px-3 py-1`} variant="secondary">
-                    {ticket.status}
-                  </Badge>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {(['new', 'open', 'pending', 'resolved', 'closed'] as const).map((status) => (
-                  <DropdownMenuItem
-                    key={status}
-                    onClick={() => onStatusChange(status)}
-                  >
-                    <Badge className={statusColors[status]} variant="secondary">
-                      {status}
-                    </Badge>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Priority Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="min-w-[120px]">
-                  <Badge className={`${priorityColors[ticket.priority]} px-3 py-1`} variant="secondary">
-                    {ticket.priority}
-                  </Badge>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuLabel>Change Priority</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {(['low', 'medium', 'high', 'urgent'] as const).map((priority) => (
-                  <DropdownMenuItem
-                    key={priority}
-                    onClick={() => onPriorityChange(priority)}
-                  >
-                    <Badge className={priorityColors[priority]} variant="secondary">
-                      {priority}
-                    </Badge>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Team Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="min-w-[160px]">
-                  <User className="h-4 w-4 mr-2" />
-                  {ticket.team?.name || 'Assign Team'}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuLabel>Assign Team</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {teams.map((team) => (
-                  <DropdownMenuItem
-                    key={team.id}
-                    onClick={() => onTeamChange(team.id)}
-                  >
-                    {team.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Agent Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="min-w-[160px]">
-                  <User className="h-4 w-4 mr-2" />
-                  {ticket.assigned_agent?.name || 'Assign Agent'}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuLabel>Assign Agent</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {agents.map((agent) => (
-                  <DropdownMenuItem
-                    key={agent.id}
-                    onClick={() => onAssigneeChange(agent.id)}
-                  >
-                    {agent.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+  const renderResponse = (response: Response) => {
+    const authorName = response.author?.user_metadata?.name || response.author?.email || 'System'
+    return (
+      <div key={response.id} className="flex flex-col space-y-2 py-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium">{authorName}</span>
+            {response.is_internal && (
+              <Badge variant="secondary">Internal</Badge>
+            )}
+            {response.type === 'ai' && (
+              <Badge variant="secondary">AI</Badge>
+            )}
           </div>
-        </CardContent>
-      </Card>
+          <span className="text-xs text-gray-400">
+            {formatDistanceToNow(new Date(response.created_at))} ago
+          </span>
+        </div>
+        <p className="text-sm text-gray-600">{response.content}</p>
+      </div>
+    )
+  }
 
-      {/* Description Section */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-semibold">Description</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{ticket.description}</p>
-        </CardContent>
-      </Card>
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Ticket Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h3 className="font-medium mb-2">Status</h3>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start">
+                      <Badge className={statusColors[ticket.status]} variant="secondary">
+                        {ticket.status}
+                      </Badge>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Set Status</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {(['new', 'open', 'pending', 'resolved', 'closed'] as const).map(status => (
+                      <DropdownMenuItem
+                        key={status}
+                        onClick={() => handleStatusChange(status)}
+                      >
+                        <Badge className={statusColors[status]} variant="secondary">
+                          {status}
+                        </Badge>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
 
-      {/* History Section */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <History className="h-4 w-4" />
-            <CardTitle className="text-lg font-semibold">History</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="space-y-4">
-            {paginatedHistory?.map((entry) => (
-              <div key={entry.id} className="flex items-start gap-4 text-sm pb-3 last:pb-0">
-                <div className="text-muted-foreground whitespace-nowrap">
-                  {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="font-medium">{entry.actor}</span>
-                  <span className="text-muted-foreground"> {entry.details}</span>
+              <div>
+                <h3 className="font-medium mb-2">Priority</h3>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start">
+                      <Badge className={priorityColors[ticket.priority]} variant="secondary">
+                        {ticket.priority}
+                      </Badge>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Set Priority</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {(['low', 'medium', 'high', 'urgent'] as const).map(priority => (
+                      <DropdownMenuItem
+                        key={priority}
+                        onClick={() => handlePriorityChange(priority)}
+                      >
+                        <Badge className={priorityColors[priority]} variant="secondary">
+                          {priority}
+                        </Badge>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div>
+                <h3 className="font-medium mb-2">Team</h3>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start">
+                      {ticket.team?.name || 'Unassigned'}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Assign Team</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {teams.map(team => (
+                      <DropdownMenuItem
+                        key={team.id}
+                        onClick={() => handleTeamChange(team.id)}
+                      >
+                        {team.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div>
+                <h3 className="font-medium mb-2">Assigned Agent</h3>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start">
+                      {ticket.assigned_agent?.name || ticket.assigned_agent?.email || 'Unassigned'}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Assign Agent</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {agents.map(agent => (
+                      <DropdownMenuItem
+                        key={agent.id}
+                        onClick={() => handleAssigneeChange(agent.id)}
+                      >
+                        {agent.name || agent.email}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div className="col-span-2">
+                <h3 className="font-medium mb-2">Tags</h3>
+                <div className="flex flex-wrap gap-2">
+                  {ticket.tags.map(tag => (
+                    <Badge
+                      key={tag}
+                      variant="secondary"
+                      className="cursor-pointer"
+                      onClick={() => removeTag(tag)}
+                    >
+                      {tag} ×
+                    </Badge>
+                  ))}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && addTag()}
+                      placeholder="Add tag..."
+                      className="w-32"
+                    />
+                    <Button onClick={addTag} size="sm">
+                      Add
+                    </Button>
+                  </div>
                 </div>
               </div>
-            ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              History
+            </CardTitle>
             {totalHistoryPages > 1 && (
-              <div className="flex justify-between items-center mt-4">
+              <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                  onClick={() => setHistoryPage(prev => Math.max(1, prev - 1))}
                   disabled={historyPage === 1}
                 >
                   Previous
                 </Button>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-gray-500">
                   Page {historyPage} of {totalHistoryPages}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p + 1))}
+                  onClick={() => setHistoryPage(prev => Math.min(totalHistoryPages, prev + 1))}
                   disabled={historyPage === totalHistoryPages}
                 >
                   Next
                 </Button>
               </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {paginatedHistory?.map(entry => renderHistoryEntry(entry))}
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Previous Responses Section */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" />
-            <CardTitle className="text-lg font-semibold">Previous Responses</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="space-y-4">
-            {paginatedResponses?.map((response) => (
-              <div key={response.id} className="flex items-start gap-4 text-sm pb-3 last:pb-0">
-                <div className="text-muted-foreground whitespace-nowrap">
-                  {formatDistanceToNow(new Date(response.created_at), { addSuffix: true })}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium">
-                      {response.author?.user_metadata?.name || response.author?.email || 'System'}
-                    </span>
-                    {response.type === 'ai' && (
-                      <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-                        AI Response
-                      </Badge>
-                    )}
-                    {response.is_internal && (
-                      <Badge variant="secondary" className="bg-gray-100 text-gray-800">
-                        Internal
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">{response.content}</p>
-                </div>
-              </div>
-            ))}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Previous Responses
+            </CardTitle>
             {totalResponsePages > 1 && (
-              <div className="flex justify-between items-center mt-4">
+              <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setResponsesPage(p => Math.max(1, p - 1))}
+                  onClick={() => setResponsesPage(prev => Math.max(1, prev - 1))}
                   disabled={responsesPage === 1}
                 >
                   Previous
                 </Button>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-gray-500">
                   Page {responsesPage} of {totalResponsePages}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setResponsesPage(p => Math.min(totalResponsePages, p + 1))}
+                  onClick={() => setResponsesPage(prev => Math.min(totalResponsePages, prev + 1))}
                   disabled={responsesPage === totalResponsePages}
                 >
                   Next
                 </Button>
               </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {paginatedResponses?.map(response => renderResponse(response))}
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Response Composer - Always visible */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-semibold">Add Response</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TicketResponseComposer 
-            ticketId={ticket.id} 
-            onResponseAdded={handleResponseAdded}
-          />
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Add Response</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TicketResponseComposer
+              key={responseKey}
+              ticketId={ticket.id}
+              onResponseAdded={handleResponseAdded}
+            />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 } 
