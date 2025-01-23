@@ -36,21 +36,20 @@ interface TicketResponseComposerProps {
     status: string
     priority: string
     customer_id?: string
+    description: string
+    source: string
+    created_at: string
+    updated_at: string
     customer?: {
       id: string
-      user: {
-        id: string
-        email: string
-        user_metadata: {
-          full_name?: string
-        }
-      }
+      company: string | null
     }
     assigned_agent?: {
       id: string
-      user: {
-        email: string
-      }
+      role: string
+      team_id: string | null
+      email: string
+      name: string
     }
     team?: {
       id: string
@@ -138,16 +137,34 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
 
     // Replace built-in variables with null checks
     const builtInVariables = {
+      // Ticket info
       '{ticket.id}': ticket?.id || '',
       '{ticket.title}': ticket?.title || '',
       '{ticket.status}': ticket?.status || '',
       '{ticket.priority}': ticket?.priority || '',
-      '{customer.name}': customerData?.user_metadata?.full_name || customerData?.email || ticket?.customer?.user?.user_metadata?.full_name || ticket?.customer?.user?.email || '',
+      '{ticket.source}': ticket?.source || '',
+      '{ticket.description}': ticket?.description || '',
+      
+      // Customer info
+      '{customer.id}': customerData?.user?.id || ticket?.customer?.id || '',
+      '{customer.name}': customerData?.user?.user_metadata?.name || customerData?.user?.email || ticket?.customer?.user?.user_metadata?.full_name || ticket?.customer?.user?.email || '',
       '{customer.email}': customerData?.user?.email || ticket?.customer?.user?.email || '',
-      '{agent.name}': ticket?.assigned_agent?.user?.email || '',
+      '{customer.created_at}': new Date(customerData?.user?.created_at || '').toLocaleDateString() || '',
+      
+      // Agent info
+      '{agent.name}': ticket?.assigned_agent?.name || ticket?.assigned_agent?.email || '',
+      '{agent.email}': ticket?.assigned_agent?.email || '',
+      '{agent.role}': ticket?.assigned_agent?.role || '',
+      
+      // Team info
       '{team.name}': ticket?.team?.name || '',
+      '{team.id}': ticket?.team?.id || '',
+      
+      // Timestamps
       '{date}': new Date().toLocaleDateString(),
       '{time}': new Date().toLocaleTimeString(),
+      '{ticket.created_at}': new Date(ticket?.created_at || '').toLocaleDateString(),
+      '{ticket.updated_at}': new Date(ticket?.updated_at || '').toLocaleDateString(),
     }
 
     console.log('Built-in variables values:', JSON.stringify(builtInVariables, null, 2))

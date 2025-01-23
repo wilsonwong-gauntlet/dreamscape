@@ -276,9 +276,18 @@ export default function MacrosPage() {
                 className="min-h-[200px]"
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                Available variables: {'{ticket.id}'}, {'{ticket.title}'}, {'{ticket.status}'},
-                {'{ticket.priority}'}, {'{customer.name}'}, {'{customer.email}'}, {'{date}'}, {'{time}'}
+              <p className="text-sm text-muted-foreground">
+                Available variables:
+                <br />
+                Ticket: {'{ticket.id}'}, {'{ticket.title}'}, {'{ticket.status}'}, {'{ticket.priority}'}, {'{ticket.source}'}, {'{ticket.description}'}, {'{ticket.created_at}'}, {'{ticket.updated_at}'}
+                <br />
+                Customer: {'{customer.id}'}, {'{customer.name}'}, {'{customer.email}'}, {'{customer.created_at}'}
+                <br />
+                Agent: {'{agent.name}'}, {'{agent.email}'}, {'{agent.role}'}
+                <br />
+                Team: {'{team.name}'}, {'{team.id}'}
+                <br />
+                Time: {'{date}'}, {'{time}'}
               </p>
             </div>
 
