@@ -2,8 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function POST(
-  request: Request,
-  { params }: { params: { session_id: string } }
+  request: Request
 ) {
   try {
     const supabase = await createClient()

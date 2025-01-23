@@ -6,8 +6,9 @@ import TicketDetail from '@/components/tickets/TicketDetail/TicketDetail'
 export default async function TicketDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
+  const { id } = await params
   const cookieStore = cookies()
   const supabase = await createClient()
 
@@ -26,7 +27,7 @@ export default async function TicketDetailPage({
       assigned_agent:agents(id, team_id, role),
       team:teams(id, name)
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (ticketError) {
@@ -38,7 +39,7 @@ export default async function TicketDetailPage({
   const { data: responses, error: responsesError } = await supabase
     .from('ticket_responses')
     .select('*')
-    .eq('ticket_id', params.id)
+    .eq('ticket_id', id)
     .order('created_at', { ascending: true })
 
   if (responsesError) {
@@ -78,7 +79,7 @@ export default async function TicketDetailPage({
   const { data: history, error: historyError } = await supabase
     .from('ticket_history')
     .select()
-    .eq('ticket_id', params.id)
+    .eq('ticket_id', id)
     .order('created_at', { ascending: true })
 
   if (historyError) {
@@ -243,18 +244,18 @@ export default async function TicketDetailPage({
     await supabase
       .from('tickets')
       .update({ status })
-      .eq('id', params.id)
+      .eq('id', id)
 
     // Add history entry
     await supabase.from('ticket_history').insert({
-      ticket_id: params.id,
+      ticket_id: id,
       actor_id: user.id,
       action: 'update',
       changes: { status }
     })
   }
 
-  const handleAssigneeChange = async (agentId: string) => {
+  const handleAssigneeChange = async (agentId: string | null) => {
     'use server'
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -263,11 +264,11 @@ export default async function TicketDetailPage({
     await supabase
       .from('tickets')
       .update({ assigned_agent_id: agentId })
-      .eq('id', params.id)
+      .eq('id', id)
 
     // Add history entry
     await supabase.from('ticket_history').insert({
-      ticket_id: params.id,
+      ticket_id: id,
       actor_id: user.id,
       action: 'update',
       changes: { assigned_agent_id: agentId }
@@ -283,11 +284,11 @@ export default async function TicketDetailPage({
     await supabase
       .from('tickets')
       .update({ tags })
-      .eq('id', params.id)
+      .eq('id', id)
 
     // Add history entry
     await supabase.from('ticket_history').insert({
-      ticket_id: params.id,
+      ticket_id: id,
       actor_id: user.id,
       action: 'update',
       changes: { tags }
@@ -303,18 +304,18 @@ export default async function TicketDetailPage({
     await supabase
       .from('tickets')
       .update({ priority })
-      .eq('id', params.id)
+      .eq('id', id)
 
     // Add history entry
     await supabase.from('ticket_history').insert({
-      ticket_id: params.id,
+      ticket_id: id,
       actor_id: user.id,
       action: 'update',
       changes: { priority }
     })
   }
 
-  const handleTeamChange = async (teamId: string) => {
+  const handleTeamChange = async (teamId: string | null) => {
     'use server'
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -323,11 +324,11 @@ export default async function TicketDetailPage({
     await supabase
       .from('tickets')
       .update({ team_id: teamId })
-      .eq('id', params.id)
+      .eq('id', id)
 
     // Add history entry
     await supabase.from('ticket_history').insert({
-      ticket_id: params.id,
+      ticket_id: id,
       actor_id: user.id,
       action: 'update',
       changes: { team_id: teamId }
