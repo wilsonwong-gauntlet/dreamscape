@@ -339,19 +339,19 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
   }
 
   const statusColors = {
-    new: 'bg-blue-500 text-white',
-    open: 'bg-yellow-500 text-white',
-    pending: 'bg-purple-500 text-white',
-    resolved: 'bg-green-500 text-white',
-    closed: 'bg-gray-500 text-white',
-  }
+    new: 'bg-blue-100 text-blue-800',
+    open: 'bg-green-100 text-green-800',
+    pending: 'bg-yellow-100 text-yellow-800',
+    resolved: 'bg-purple-100 text-purple-800',
+    closed: 'bg-gray-100 text-gray-800'
+  } as const
 
   const priorityColors = {
     low: 'bg-blue-100 text-blue-800',
     medium: 'bg-yellow-100 text-yellow-800',
-    high: 'bg-red-100 text-red-800',
-    urgent: 'bg-red-500 text-white',
-  }
+    high: 'bg-orange-100 text-orange-800',
+    urgent: 'bg-red-100 text-red-800'
+  } as const
 
   const quickViews = [
     { 

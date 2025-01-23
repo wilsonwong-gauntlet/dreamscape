@@ -291,20 +291,20 @@ export default function TicketDetail({
     responsesPage * ITEMS_PER_PAGE
   )
 
-  const statusColors: Record<TicketStatus, string> = {
-    new: "bg-blue-500 text-white",
-    open: "bg-green-500 text-white",
-    pending: "bg-yellow-500 text-white",
-    resolved: "bg-purple-500 text-white",
-    closed: "bg-gray-500 text-white",
-  }
+  const statusColors = {
+    new: 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300',
+    open: 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300',
+    pending: 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 hover:border-amber-300',
+    resolved: 'bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 hover:border-purple-300',
+    closed: 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+  } as const
 
-  const priorityColors: Record<TicketPriority, string> = {
-    low: "bg-gray-500 text-white",
-    medium: "bg-yellow-500 text-white",
-    high: "bg-orange-500 text-white",
-    urgent: "bg-red-500 text-white",
-  }
+  const priorityColors = {
+    low: 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300',
+    medium: 'bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 hover:border-yellow-300',
+    high: 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 hover:border-orange-300',
+    urgent: 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 hover:border-rose-300'
+  } as const
 
   const handleResponseAdded = () => {
     // Force a refresh of the response list by changing its key
@@ -350,231 +350,346 @@ export default function TicketDetail({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Ticket Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h3 className="font-medium mb-2">Status</h3>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      <Badge className={statusColors[ticket.status]} variant="secondary">
-                        {ticket.status}
-                      </Badge>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Set Status</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {(['new', 'open', 'pending', 'resolved', 'closed'] as const).map(status => (
-                      <DropdownMenuItem
-                        key={status}
-                        onClick={() => handleStatusChange(status)}
-                      >
-                        <Badge className={statusColors[status]} variant="secondary">
-                          {status}
-                        </Badge>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+    <div className="max-w-[1200px] mx-auto">
+      {/* Ticket Header */}
+      <div className="mb-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="font-mono text-xs px-1.5 py-0 border-dashed text-gray-500 bg-gray-50">
+                #{ticket.id.slice(0, 8)}
+              </Badge>
+              <Badge className={`${priorityColors[ticket.priority]} shadow-sm font-medium`}>
+                {ticket.priority}
+              </Badge>
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{ticket.title}</h1>
+            <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-1.5 text-gray-600">
+                <Clock className="h-3.5 w-3.5 text-gray-400" />
+                Created {formatDistanceToNow(new Date(ticket.created_at))} ago
               </div>
-
-              <div>
-                <h3 className="font-medium mb-2">Priority</h3>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      <Badge className={priorityColors[ticket.priority]} variant="secondary">
-                        {ticket.priority}
-                      </Badge>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Set Priority</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {(['low', 'medium', 'high', 'urgent'] as const).map(priority => (
-                      <DropdownMenuItem
-                        key={priority}
-                        onClick={() => handlePriorityChange(priority)}
-                      >
-                        <Badge className={priorityColors[priority]} variant="secondary">
-                          {priority}
-                        </Badge>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              <span className="text-gray-300">•</span>
+              <div className="flex items-center gap-1.5 text-gray-600">
+                <User className="h-3.5 w-3.5 text-gray-400" />
+                <span className={ticket.assigned_agent ? "" : "italic text-gray-400"}>
+                  {ticket.assigned_agent?.name || ticket.assigned_agent?.email || 'Unassigned'}
+                </span>
               </div>
+            </div>
+          </div>
+        </div>
 
-              <div>
-                <h3 className="font-medium mb-2">Team</h3>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
+        {/* Quick Actions Bar */}
+        <div className="grid grid-cols-4 gap-4">
+          {/* Status Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline" 
+                className={`justify-start h-auto py-2.5 w-full transition-all ${
+                  ticket.status === 'new' ? 'border-blue-200 bg-blue-50/50 hover:bg-blue-50' :
+                  ticket.status === 'open' ? 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50' :
+                  ticket.status === 'pending' ? 'border-amber-200 bg-amber-50/50 hover:bg-amber-50' :
+                  ticket.status === 'resolved' ? 'border-purple-200 bg-purple-50/50 hover:bg-purple-50' :
+                  'border-gray-200 bg-gray-50/50 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex flex-col items-start gap-1 text-left">
+                  <span className="text-[11px] uppercase tracking-wider text-gray-500 font-medium">Status</span>
+                  <div className="flex items-center gap-2 w-full">
+                    <Badge className={`${statusColors[ticket.status]} shadow-sm font-medium`}>
+                      {ticket.status}
+                    </Badge>
+                    <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-auto" />
+                  </div>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[180px]">
+              <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-gray-500">Update Status</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-gray-100" />
+              {(['new', 'open', 'pending', 'resolved', 'closed'] as const).map(status => (
+                <DropdownMenuItem
+                  key={status}
+                  onClick={() => handleStatusChange(status)}
+                  className="gap-2 cursor-pointer hover:bg-gray-50"
+                >
+                  <Badge className={`${statusColors[status]} shadow-sm font-medium`}>
+                    {status}
+                  </Badge>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Priority Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline" 
+                className={`justify-start h-auto py-2.5 w-full transition-all ${
+                  ticket.priority === 'urgent' ? 'border-rose-200 bg-rose-50/50 hover:bg-rose-50' :
+                  ticket.priority === 'high' ? 'border-orange-200 bg-orange-50/50 hover:bg-orange-50' :
+                  ticket.priority === 'medium' ? 'border-yellow-200 bg-yellow-50/50 hover:bg-yellow-50' :
+                  'border-blue-200 bg-blue-50/50 hover:bg-blue-50'
+                }`}
+              >
+                <div className="flex flex-col items-start gap-1 text-left">
+                  <span className="text-[11px] uppercase tracking-wider text-gray-500 font-medium">Priority</span>
+                  <div className="flex items-center gap-2 w-full">
+                    <Badge className={`${priorityColors[ticket.priority]} shadow-sm font-medium`}>
+                      {ticket.priority}
+                    </Badge>
+                    <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-auto" />
+                  </div>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[180px]">
+              <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-gray-500">Set Priority</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-gray-100" />
+              {(['low', 'medium', 'high', 'urgent'] as const).map(priority => (
+                <DropdownMenuItem
+                  key={priority}
+                  onClick={() => handlePriorityChange(priority)}
+                  className="gap-2 cursor-pointer hover:bg-gray-50"
+                >
+                  <Badge className={`${priorityColors[priority]} shadow-sm font-medium`}>
+                    {priority}
+                  </Badge>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Team Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline" 
+                className={`justify-start h-auto py-2.5 w-full transition-all ${
+                  ticket.team ? 'border-indigo-100 bg-indigo-50/30 hover:bg-indigo-50' : 'bg-gray-50/50 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex flex-col items-start gap-1 text-left">
+                  <span className="text-[11px] uppercase tracking-wider text-gray-500 font-medium">Team</span>
+                  <div className="flex items-center gap-2 w-full">
+                    <span className={`font-medium truncate ${ticket.team ? 'text-gray-700' : 'text-gray-400 italic'}`}>
                       {ticket.team?.name || 'Unassigned'}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Assign Team</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {teams.map(team => (
-                      <DropdownMenuItem
-                        key={team.id}
-                        onClick={() => handleTeamChange(team.id)}
-                      >
-                        {team.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-auto" />
+                  </div>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[180px]">
+              <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-gray-500">Assign Team</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-gray-100" />
+              {teams.map(team => (
+                <DropdownMenuItem
+                  key={team.id}
+                  onClick={() => handleTeamChange(team.id)}
+                  className="cursor-pointer hover:bg-gray-50 text-gray-700"
+                >
+                  {team.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-              <div>
-                <h3 className="font-medium mb-2">Assigned Agent</h3>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
+          {/* Assigned Agent Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline" 
+                className={`justify-start h-auto py-2.5 w-full transition-all ${
+                  ticket.assigned_agent ? 'border-indigo-100 bg-indigo-50/30 hover:bg-indigo-50' : 'bg-gray-50/50 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex flex-col items-start gap-1 text-left">
+                  <span className="text-[11px] uppercase tracking-wider text-gray-500 font-medium">Assigned To</span>
+                  <div className="flex items-center gap-2 w-full">
+                    <span className={`font-medium truncate ${ticket.assigned_agent ? 'text-gray-700' : 'text-gray-400 italic'}`}>
                       {ticket.assigned_agent?.name || ticket.assigned_agent?.email || 'Unassigned'}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Assign Agent</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {agents.map(agent => (
-                      <DropdownMenuItem
-                        key={agent.id}
-                        onClick={() => handleAssigneeChange(agent.id)}
-                      >
-                        {agent.name || agent.email}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-auto" />
+                  </div>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[180px]">
+              <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-gray-500">Assign Agent</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-gray-100" />
+              {agents.map(agent => (
+                <DropdownMenuItem
+                  key={agent.id}
+                  onClick={() => handleAssigneeChange(agent.id)}
+                  className="cursor-pointer hover:bg-gray-50 text-gray-700"
+                >
+                  {agent.name || agent.email}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
 
-              <div className="col-span-2">
-                <h3 className="font-medium mb-2">Tags</h3>
-                <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2 space-y-6">
+          {/* Description Card */}
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between py-3 border-b border-gray-100 bg-gray-50/50">
+              <CardTitle className="text-sm font-medium text-gray-700">Description</CardTitle>
+              <Button variant="ghost" size="sm" className="h-8 px-2 text-gray-400 hover:text-gray-700">
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="text-sm pt-4 text-gray-600">
+              {ticket.description}
+            </CardContent>
+          </Card>
+
+          {/* Add Response Section */}
+          <Card className="border-indigo-200 shadow-sm">
+            <CardHeader className="py-3 border-b border-indigo-100 bg-indigo-50/50">
+              <CardTitle className="text-sm font-medium text-indigo-900">Add Response</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <TicketResponseComposer
+                key={responseKey}
+                ticketId={ticket.id}
+                onResponseAdded={handleResponseAdded}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Previous Responses Section */}
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between py-3 border-b border-gray-100 bg-gray-50/50">
+              <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <MessageSquare className="h-3.5 w-3.5 text-gray-400" />
+                Previous Responses
+              </CardTitle>
+              {totalResponsePages > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-gray-400 hover:text-gray-700"
+                    onClick={() => setResponsesPage(prev => Math.max(1, prev - 1))}
+                    disabled={responsesPage === 1}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5 rotate-90" />
+                  </Button>
+                  <span className="text-xs text-gray-500 font-medium">
+                    {responsesPage} / {totalResponsePages}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-gray-400 hover:text-gray-700"
+                    onClick={() => setResponsesPage(prev => Math.min(totalResponsePages, prev + 1))}
+                    disabled={responsesPage === totalResponsePages}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="space-y-4">
+                {paginatedResponses?.map(response => renderResponse(response))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          {/* Tags Card */}
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader className="py-3 border-b border-gray-100 bg-gray-50/50">
+              <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Tag className="h-3.5 w-3.5 text-gray-400" />
+                Tags
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-1.5">
                   {ticket.tags.map(tag => (
                     <Badge
                       key={tag}
                       variant="secondary"
-                      className="cursor-pointer"
+                      className="px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 cursor-pointer transition-colors group"
                       onClick={() => removeTag(tag)}
                     >
-                      {tag} ×
+                      {tag}
+                      <span className="ml-1 text-gray-400 group-hover:text-gray-600 transition-colors">×</span>
                     </Badge>
                   ))}
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={newTag}
-                      onChange={(e) => setNewTag(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && addTag()}
-                      placeholder="Add tag..."
-                      className="w-32"
-                    />
-                    <Button onClick={addTag} size="sm">
-                      Add
-                    </Button>
-                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addTag()}
+                    placeholder="Add tag..."
+                    className="h-8 text-sm"
+                  />
+                  <Button 
+                    onClick={addTag} 
+                    size="sm" 
+                    variant="secondary"
+                    className="h-8 px-3 bg-gray-100 hover:bg-gray-200 text-gray-600"
+                  >
+                    Add
+                  </Button>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              History
-            </CardTitle>
-            {totalHistoryPages > 1 && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setHistoryPage(prev => Math.max(1, prev - 1))}
-                  disabled={historyPage === 1}
-                >
-                  Previous
-                </Button>
-                <span className="text-sm text-gray-500">
-                  Page {historyPage} of {totalHistoryPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setHistoryPage(prev => Math.min(totalHistoryPages, prev + 1))}
-                  disabled={historyPage === totalHistoryPages}
-                >
-                  Next
-                </Button>
+          {/* History Card */}
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between py-3 border-b border-gray-100 bg-gray-50/50">
+              <CardTitle className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <History className="h-3.5 w-3.5 text-gray-400" />
+                History
+              </CardTitle>
+              {totalHistoryPages > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-gray-400 hover:text-gray-700"
+                    onClick={() => setHistoryPage(prev => Math.max(1, prev - 1))}
+                    disabled={historyPage === 1}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5 rotate-90" />
+                  </Button>
+                  <span className="text-xs text-gray-500 font-medium">
+                    {historyPage} / {totalHistoryPages}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-gray-400 hover:text-gray-700"
+                    onClick={() => setHistoryPage(prev => Math.min(totalHistoryPages, prev + 1))}
+                    disabled={historyPage === totalHistoryPages}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="space-y-3">
+                {paginatedHistory?.map(entry => renderHistoryEntry(entry))}
               </div>
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {paginatedHistory?.map(entry => renderHistoryEntry(entry))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5" />
-              Previous Responses
-            </CardTitle>
-            {totalResponsePages > 1 && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setResponsesPage(prev => Math.max(1, prev - 1))}
-                  disabled={responsesPage === 1}
-                >
-                  Previous
-                </Button>
-                <span className="text-sm text-gray-500">
-                  Page {responsesPage} of {totalResponsePages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setResponsesPage(prev => Math.min(totalResponsePages, prev + 1))}
-                  disabled={responsesPage === totalResponsePages}
-                >
-                  Next
-                </Button>
-              </div>
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {paginatedResponses?.map(response => renderResponse(response))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Add Response</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TicketResponseComposer
-              key={responseKey}
-              ticketId={ticket.id}
-              onResponseAdded={handleResponseAdded}
-            />
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
