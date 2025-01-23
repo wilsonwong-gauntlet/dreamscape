@@ -1,7 +1,8 @@
 import { formatDistanceToNow } from "date-fns"
-import { User } from "lucide-react"
+import { User, Bot, Lock, MessageSquare } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
 interface Response {
   id: string
@@ -29,7 +30,12 @@ interface TicketResponseListProps {
 
 export default function TicketResponseList({ responses }: TicketResponseListProps) {
   if (!responses.length) {
-    return <div className="text-muted-foreground">No responses yet</div>
+    return (
+      <div className="flex flex-col items-center justify-center py-8 text-center">
+        <MessageSquare className="h-8 w-8 text-gray-300 mb-2" />
+        <p className="text-sm text-gray-500">No responses yet</p>
+      </div>
+    )
   }
 
   return (
@@ -45,32 +51,62 @@ export default function TicketResponseList({ responses }: TicketResponseListProp
                           'System'
 
         return (
-          <Card key={response.id}>
+          <Card 
+            key={response.id} 
+            className={cn(
+              "transition-all",
+              response.is_internal && "border-gray-200 bg-gray-50/50",
+              response.type === 'ai' && !response.is_internal && "border-indigo-200 bg-indigo-50/50",
+              !response.is_internal && response.type === 'human' && "border-gray-200"
+            )}
+          >
             <CardContent className="p-4">
-              <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  <span className="font-medium">
-                    {displayName}
-                  </span>
-                  {response.type === 'ai' && (
-                    <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-                      AI Response
-                    </Badge>
-                  )}
-                  {response.is_internal && (
-                    <Badge variant="secondary" className="bg-gray-100 text-gray-800">
-                      Internal
-                    </Badge>
-                  )}
+                  <div className={cn(
+                    "flex items-center justify-center w-8 h-8 rounded-full",
+                    response.type === 'ai' ? "bg-indigo-100 text-indigo-600" : 
+                    response.is_internal ? "bg-gray-100 text-gray-600" :
+                    "bg-emerald-100 text-emerald-600"
+                  )}>
+                    {response.type === 'ai' ? (
+                      <Bot className="h-4 w-4" />
+                    ) : response.is_internal ? (
+                      <Lock className="h-4 w-4" />
+                    ) : (
+                      <User className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-medium text-sm">
+                      {displayName}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {response.type === 'ai' && (
+                        <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 border-none">
+                          AI Response
+                        </Badge>
+                      )}
+                      {response.is_internal && (
+                        <Badge variant="secondary" className="bg-gray-100 text-gray-700 border-none">
+                          Internal
+                        </Badge>
+                      )}
+                      <span className="text-xs text-gray-400">
+                        {isValidDate 
+                          ? formatDistanceToNow(createdAt, { addSuffix: true })
+                          : 'Invalid date'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <span className="text-sm text-muted-foreground">
-                  {isValidDate 
-                    ? formatDistanceToNow(createdAt, { addSuffix: true })
-                    : 'Invalid date'}
-                </span>
               </div>
-              <p className="whitespace-pre-wrap">{response.content}</p>
+              <div className={cn(
+                "pl-10 whitespace-pre-wrap text-sm",
+                response.is_internal ? "text-gray-600" : "text-gray-700"
+              )}>
+                {response.content}
+              </div>
             </CardContent>
           </Card>
         )

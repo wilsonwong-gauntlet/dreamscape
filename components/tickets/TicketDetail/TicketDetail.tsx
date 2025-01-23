@@ -21,7 +21,7 @@ import {
   DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
-import { MoreHorizontal, Clock, User, Tag, History, ChevronDown, ChevronUp, MessageSquare } from "lucide-react"
+import { MoreHorizontal, Clock, User, Tag, History, ChevronDown, ChevronUp, MessageSquare, Users } from "lucide-react"
 import { formatDistanceToNow, format } from "date-fns"
 import type { Ticket } from "@/types/database"
 import TicketResponseList from "./TicketResponseList"
@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input"
 import { useState, useEffect } from "react"
 import { TicketActions } from "@/components/tickets/TicketActions"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 type TicketStatus = 'new' | 'open' | 'pending' | 'resolved' | 'closed'
 type TicketPriority = 'low' | 'medium' | 'high' | 'urgent'
@@ -398,29 +399,52 @@ export default function TicketDetail({
   return (
     <div className="max-w-[1200px] mx-auto">
       {/* Ticket Header */}
-      <div className="mb-6">
-        <div className="flex items-start justify-between mb-4">
-          <div className="space-y-2">
+      <div className="mb-8">
+        <div className="flex items-start justify-between mb-6">
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="font-mono text-xs px-1.5 py-0 border-dashed text-gray-500 bg-gray-50">
+              <Badge 
+                variant="outline" 
+                className="font-mono text-xs px-2 py-0.5 border-dashed text-gray-500 bg-gray-50/50"
+              >
                 #{ticket.id.slice(0, 8)}
               </Badge>
-              <Badge className={`${priorityColors[ticket.priority]} shadow-sm font-medium`}>
+              <Badge 
+                className={cn(
+                  "shadow-sm font-medium px-2.5 py-0.5",
+                  priorityColors[ticket.priority]
+                )}
+              >
                 {ticket.priority}
               </Badge>
+              <Badge 
+                className={cn(
+                  "shadow-sm font-medium px-2.5 py-0.5",
+                  statusColors[ticket.status]
+                )}
+              >
+                {ticket.status}
+              </Badge>
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{ticket.title}</h1>
-            <div className="flex items-center gap-3 text-sm">
-              <div className="flex items-center gap-1.5 text-gray-600">
-                <Clock className="h-3.5 w-3.5 text-gray-400" />
-                Created {formatDistanceToNow(new Date(ticket.created_at))} ago
-              </div>
-              <span className="text-gray-300">•</span>
-              <div className="flex items-center gap-1.5 text-gray-600">
-                <User className="h-3.5 w-3.5 text-gray-400" />
-                <span className={ticket.assigned_agent ? "" : "italic text-gray-400"}>
-                  {ticket.assigned_agent?.name || ticket.assigned_agent?.email || 'Unassigned'}
-                </span>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-900 mb-2">{ticket.title}</h1>
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-1.5 text-gray-600">
+                  <Clock className="h-3.5 w-3.5 text-gray-400" />
+                  Created {formatDistanceToNow(new Date(ticket.created_at))} ago
+                </div>
+                <div className="flex items-center gap-1.5 text-gray-600">
+                  <User className="h-3.5 w-3.5 text-gray-400" />
+                  <span className={ticket.assigned_agent ? "" : "italic text-gray-400"}>
+                    {ticket.assigned_agent?.name || ticket.assigned_agent?.email || 'Unassigned'}
+                  </span>
+                </div>
+                {ticket.team && (
+                  <div className="flex items-center gap-1.5 text-gray-600">
+                    <Users className="h-3.5 w-3.5 text-gray-400" />
+                    {ticket.team.name}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -433,18 +457,19 @@ export default function TicketDetail({
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="outline" 
-                className={`justify-start h-auto py-2.5 w-full transition-all ${
-                  ticket.status === 'new' ? 'border-blue-200 bg-blue-50/50 hover:bg-blue-50' :
-                  ticket.status === 'open' ? 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50' :
-                  ticket.status === 'pending' ? 'border-amber-200 bg-amber-50/50 hover:bg-amber-50' :
-                  ticket.status === 'resolved' ? 'border-purple-200 bg-purple-50/50 hover:bg-purple-50' :
-                  'border-gray-200 bg-gray-50/50 hover:bg-gray-50'
-                }`}
+                className={cn(
+                  "justify-start h-auto py-2.5 w-full transition-all",
+                  ticket.status === 'new' && "border-blue-200 bg-blue-50/50 hover:bg-blue-50",
+                  ticket.status === 'open' && "border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50",
+                  ticket.status === 'pending' && "border-amber-200 bg-amber-50/50 hover:bg-amber-50",
+                  ticket.status === 'resolved' && "border-purple-200 bg-purple-50/50 hover:bg-purple-50",
+                  ticket.status === 'closed' && "border-gray-200 bg-gray-50/50 hover:bg-gray-50"
+                )}
               >
                 <div className="flex flex-col items-start gap-1 text-left">
                   <span className="text-[11px] uppercase tracking-wider text-gray-500 font-medium">Status</span>
                   <div className="flex items-center gap-2 w-full">
-                    <Badge className={`${statusColors[ticket.status]} shadow-sm font-medium`}>
+                    <Badge className={cn("shadow-sm font-medium", statusColors[ticket.status])}>
                       {ticket.status}
                     </Badge>
                     <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-auto" />
@@ -461,7 +486,7 @@ export default function TicketDetail({
                   onClick={() => handleStatusChange(status)}
                   className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50"
                 >
-                  <Badge className={`${statusColors[status]} shadow-sm font-medium min-w-[80px] justify-center`}>
+                  <Badge className={cn("shadow-sm font-medium min-w-[80px] justify-center", statusColors[status])}>
                     {status}
                   </Badge>
                   <span className="text-sm text-gray-600">
@@ -481,17 +506,18 @@ export default function TicketDetail({
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="outline" 
-                className={`justify-start h-auto py-2.5 w-full transition-all ${
-                  ticket.priority === 'urgent' ? 'border-rose-200 bg-rose-50/50 hover:bg-rose-50' :
-                  ticket.priority === 'high' ? 'border-orange-200 bg-orange-50/50 hover:bg-orange-50' :
-                  ticket.priority === 'medium' ? 'border-yellow-200 bg-yellow-50/50 hover:bg-yellow-50' :
-                  'border-blue-200 bg-blue-50/50 hover:bg-blue-50'
-                }`}
+                className={cn(
+                  "justify-start h-auto py-2.5 w-full transition-all",
+                  ticket.priority === 'urgent' && "border-rose-200 bg-rose-50/50 hover:bg-rose-50",
+                  ticket.priority === 'high' && "border-orange-200 bg-orange-50/50 hover:bg-orange-50",
+                  ticket.priority === 'medium' && "border-yellow-200 bg-yellow-50/50 hover:bg-yellow-50",
+                  ticket.priority === 'low' && "border-blue-200 bg-blue-50/50 hover:bg-blue-50"
+                )}
               >
                 <div className="flex flex-col items-start gap-1 text-left">
                   <span className="text-[11px] uppercase tracking-wider text-gray-500 font-medium">Priority</span>
                   <div className="flex items-center gap-2 w-full">
-                    <Badge className={`${priorityColors[ticket.priority]} shadow-sm font-medium`}>
+                    <Badge className={cn("shadow-sm font-medium", priorityColors[ticket.priority])}>
                       {ticket.priority}
                     </Badge>
                     <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-auto" />
@@ -508,7 +534,7 @@ export default function TicketDetail({
                   onClick={() => handlePriorityChange(priority)}
                   className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50"
                 >
-                  <Badge className={`${priorityColors[priority]} shadow-sm font-medium min-w-[80px] justify-center`}>
+                  <Badge className={cn("shadow-sm font-medium min-w-[80px] justify-center", priorityColors[priority])}>
                     {priority}
                   </Badge>
                   <span className="text-sm text-gray-600">
@@ -527,14 +553,18 @@ export default function TicketDetail({
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="outline" 
-                className={`justify-start h-auto py-2.5 w-full transition-all ${
-                  ticket.team ? 'border-indigo-100 bg-indigo-50/30 hover:bg-indigo-50' : 'bg-gray-50/50 hover:bg-gray-50'
-                }`}
+                className={cn(
+                  "justify-start h-auto py-2.5 w-full transition-all",
+                  ticket.team ? "border-indigo-100 bg-indigo-50/30 hover:bg-indigo-50" : "bg-gray-50/50 hover:bg-gray-50"
+                )}
               >
                 <div className="flex flex-col items-start gap-1 text-left">
                   <span className="text-[11px] uppercase tracking-wider text-gray-500 font-medium">Team</span>
                   <div className="flex items-center gap-2 w-full">
-                    <span className={`font-medium truncate ${ticket.team ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                    <span className={cn(
+                      "font-medium truncate",
+                      ticket.team ? "text-gray-700" : "text-gray-400 italic"
+                    )}>
                       {ticket.team?.name || 'Unassigned'}
                     </span>
                     <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-auto" />
@@ -550,7 +580,7 @@ export default function TicketDetail({
                 className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50"
               >
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100">
-                  <User className="h-4 w-4 text-gray-400" />
+                  <Users className="h-4 w-4 text-gray-400" />
                 </div>
                 <div className="flex flex-col">
                   <span className="text-sm text-gray-600 italic">Unassigned</span>
@@ -578,14 +608,18 @@ export default function TicketDetail({
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="outline" 
-                className={`justify-start h-auto py-2.5 w-full transition-all ${
-                  ticket.assigned_agent ? 'border-indigo-100 bg-indigo-50/30 hover:bg-indigo-50' : 'bg-gray-50/50 hover:bg-gray-50'
-                }`}
+                className={cn(
+                  "justify-start h-auto py-2.5 w-full transition-all",
+                  ticket.assigned_agent ? "border-indigo-100 bg-indigo-50/30 hover:bg-indigo-50" : "bg-gray-50/50 hover:bg-gray-50"
+                )}
               >
                 <div className="flex flex-col items-start gap-1 text-left">
                   <span className="text-[11px] uppercase tracking-wider text-gray-500 font-medium">Assigned To</span>
                   <div className="flex items-center gap-2 w-full">
-                    <span className={`font-medium truncate ${ticket.assigned_agent ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                    <span className={cn(
+                      "font-medium truncate",
+                      ticket.assigned_agent ? "text-gray-700" : "text-gray-400 italic"
+                    )}>
                       {ticket.assigned_agent?.name || ticket.assigned_agent?.email || 'Unassigned'}
                     </span>
                     <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-auto" />
