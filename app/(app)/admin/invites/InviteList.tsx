@@ -25,7 +25,7 @@ interface Invite {
   email: string
   role: 'agent' | 'admin'
   team_id: string
-  teams: { name: string }
+  teams: { name: string }[]
   created_at: string
   expires_at: string
   used_at: string | null
@@ -157,7 +157,7 @@ export function InviteList({ teams, invites: initialInvites }: InviteListProps) 
                 <tr key={invite.id} className={isNew ? "bg-primary/5" : undefined}>
                   <td className="p-3">{invite.email}</td>
                   <td className="p-3">{invite.role}</td>
-                  <td className="p-3">{invite.teams?.name}</td>
+                  <td className="p-3">{invite.teams?.map(team => team.name).join(', ')}</td>
                   <td className="p-3">
                     {invite.used_at ? (
                       <span className="text-muted-foreground">Used</span>

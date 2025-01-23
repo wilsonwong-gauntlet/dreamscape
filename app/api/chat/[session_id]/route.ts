@@ -2,8 +2,9 @@ import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function POST(
-  request: Request
+  request: Request,
 ) {
+  const { session_id } = await request.json()
   try {
     const supabase = await createClient()
     
@@ -34,7 +35,7 @@ export async function POST(
     const { data: session } = await supabase
       .from('chat_sessions')
       .select('id, status')
-      .eq('id', params.session_id)
+      .eq('id', session_id)
       .single()
 
     if (!session) {
@@ -49,7 +50,7 @@ export async function POST(
     const { data: message, error } = await supabase
       .from('chat_messages')
       .insert([{
-        session_id: params.session_id,
+        session_id: session_id,
         sender_id: user.id,
         sender_type: 'agent',
         content

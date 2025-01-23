@@ -5,6 +5,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+    const id = (await params).slug
   try {
     const supabase = await createClient()
 
@@ -21,7 +22,7 @@ export async function GET(
         *,
         team:teams(id, name)
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (macroError) {
@@ -46,6 +47,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+    const id = (await params).slug
   try {
     const supabase = await createClient()
 
@@ -91,7 +93,7 @@ export async function PATCH(
         variables,
         team_id
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 
@@ -117,6 +119,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+    const id = (await params).slug
   try {
     const supabase = await createClient()
 
@@ -144,7 +147,7 @@ export async function DELETE(
     const { error: macroError } = await supabase
       .from('macros')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
 
     if (macroError) {
       console.error('Error deleting macro:', macroError)

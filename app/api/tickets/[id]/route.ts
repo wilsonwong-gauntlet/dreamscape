@@ -7,6 +7,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  const id = (await params).slug
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -24,7 +25,7 @@ export async function GET(
         team:teams(*),
         responses:ticket_responses(*)
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (error) throw error
@@ -46,6 +47,7 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  const id = (await params).slug
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -61,7 +63,7 @@ export async function PUT(
     const { data: currentTicket, error: fetchError } = await supabase
       .from('tickets')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (fetchError || !currentTicket) {
@@ -82,7 +84,7 @@ export async function PUT(
           ...custom_fields
         }
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 
@@ -90,7 +92,7 @@ export async function PUT(
 
     // Log the changes in ticket_history
     await supabase.from('ticket_history').insert({
-      ticket_id: params.id,
+      ticket_id: id,
       actor_id: user.id,
       action: 'update',
       changes: json
@@ -110,6 +112,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  const id = (await params).slug
   try {
     const supabase = await createClient()
 
@@ -134,7 +137,7 @@ export async function PATCH(
     const { data: currentTicket, error: ticketError } = await supabase
       .from('tickets')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (ticketError || !currentTicket) {
@@ -151,7 +154,7 @@ export async function PATCH(
     const { data: updatedData, error: updateError } = await supabase
       .from('tickets')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
 
     if (updateError) {
@@ -171,7 +174,7 @@ export async function PATCH(
         assigned_agent:agents(*),
         team:teams(*)
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (fetchError) {
@@ -184,7 +187,7 @@ export async function PATCH(
 
     // Create history entry
     const { error: historyError } = await supabase.from('ticket_history').insert({
-      ticket_id: params.id,
+      ticket_id: id,
       actor_id: user.id,
       action: 'update',
       changes: updates,

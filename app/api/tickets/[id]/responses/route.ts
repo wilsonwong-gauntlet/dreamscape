@@ -8,6 +8,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  const id = (await params).slug
   try {
     const supabase = createClient()
 
@@ -27,7 +28,7 @@ export async function POST(
           user_id
         )
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (ticketError) {
@@ -62,7 +63,7 @@ export async function POST(
     const { data: response, error: responseError } = await supabase
       .from('ticket_responses')
       .insert({
-        ticket_id: params.id,
+        ticket_id: id,
         content,
         type,
         is_internal,
@@ -88,7 +89,7 @@ export async function POST(
 
     // Create history entry
     const { error: historyError } = await supabase.from('ticket_history').insert({
-      ticket_id: params.id,
+      ticket_id: id,
       actor_id: user.id,
       action: 'add_response',
       changes: { content, is_internal, type },
@@ -112,6 +113,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  const id = (await params).slug
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -127,7 +129,7 @@ export async function GET(
     let query = supabase
       .from('ticket_responses')
       .select('*')
-      .eq('ticket_id', params.id)
+      .eq('ticket_id', id)
       .order('created_at', { ascending: true })
 
     if (!includeInternal) {
