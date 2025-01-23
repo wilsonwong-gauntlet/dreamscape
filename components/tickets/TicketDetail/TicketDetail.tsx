@@ -65,8 +65,12 @@ interface LocalTicket {
   status: TicketStatus
   priority: TicketPriority
   created_at: string
+  updated_at: string
+  source: string
+  customer_id?: string
   customer?: {
     id: string
+    company: string | null
     user: {
       id: string
       email: string
@@ -81,6 +85,10 @@ interface LocalTicket {
   }
   assigned_agent?: {
     id: string
+    role: string
+    team_id: string | null
+    email: string
+    name: string
     user: {
       email: string
     }
@@ -101,6 +109,7 @@ interface TicketDetailProps {
     name?: string
     email: string
     team_id: string | null
+    role: string
   }[]
   currentUserId: string
   onStatusChange: (status: TicketStatus) => Promise<void>
@@ -258,63 +267,32 @@ export default function TicketDetail({
   }
 
   const handleAssigneeChange = async (agentId: string | null) => {
-    try {
-      // If agentId is null, we're unassigning
-      if (agentId === null) {
-        setTicket(prev => ({
-          ...prev,
-          assigned_agent: undefined,
-          history: [
-            {
-              id: Date.now().toString(),
-              action: 'update',
-              actor: 'You',
-              timestamp: new Date().toISOString(),
-              details: prev.assigned_agent 
-                ? `Unassigned from agent "${prev.assigned_agent.user.email}"`
-                : 'Removed agent assignment'
-            },
-            ...prev.history
-          ]
-        }))
-        setHistoryPage(1)
-        await onAssigneeChange(null)
-        return
-      }
-
-      const newAgent = agents.find(a => a.id === agentId)
-      if (!newAgent) return
-
+    if (!agentId) {
       setTicket(prev => ({
         ...prev,
-        assigned_agent: {
-          id: newAgent.id,
-          user: {
-            email: newAgent.email
-          }
-        },
-        history: [
-          {
-            id: Date.now().toString(),
-            action: 'update',
-            actor: 'You',
-            timestamp: new Date().toISOString(),
-            details: prev.assigned_agent
-              ? `Reassigned from "${prev.assigned_agent.user.email}" to "${newAgent.email}"`
-              : `Assigned to agent "${newAgent.email}"`
-          },
-          ...prev.history
-        ]
+        assigned_agent: undefined
       }))
-      setHistoryPage(1)
-      await onAssigneeChange(agentId)
-    } catch (error) {
-      setTicket(prev => ({
-        ...prev,
-        assigned_agent: prev.assigned_agent
-      }))
-      toast.error("Failed to update assignee")
+      await onAssigneeChange(null)
+      return
     }
+
+    const selectedAgent = agents.find(a => a.id === agentId)
+    if (!selectedAgent) return
+
+    setTicket(prev => ({
+      ...prev,
+      assigned_agent: {
+        id: selectedAgent.id,
+        role: selectedAgent.role || 'agent',
+        team_id: selectedAgent.team_id,
+        email: selectedAgent.email,
+        name: selectedAgent.name || selectedAgent.email,
+        user: {
+          email: selectedAgent.email
+        }
+      }
+    }))
+    await onAssigneeChange(agentId)
   }
 
   const handleTagsChange = async (newTags: string[]) => {

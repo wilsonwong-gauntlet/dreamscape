@@ -52,26 +52,27 @@ export interface ExtendedTicket {
   priority: 'low' | 'medium' | 'high' | 'urgent'
   created_at: string
   updated_at: string
-  customer: { 
+  customer?: {
+    id: string
+    company: string | null
+    user: {
+      email: string
+    }
+  }
+  team?: {
+    id: string
+    name: string
+  }
+  assigned_agent?: {
     id: string
     user: {
       email: string
     }
-  } | null
-  assigned_agent: { 
-    id: string
-    user: {
-      email: string
-    }
-  } | null
-  team: { 
-    id: string
-    name: string 
-  } | null
+  }
   last_response?: {
     author_id: string
     created_at: string
     is_internal: boolean
     type: 'human' | 'ai'
-  } | null
+  }
 } 

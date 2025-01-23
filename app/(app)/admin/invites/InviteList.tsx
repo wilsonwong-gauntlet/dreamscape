@@ -25,7 +25,7 @@ interface Invite {
   email: string
   role: 'agent' | 'admin'
   team_id: string
-  teams: { name: string }[]
+  teams: { id: string; name: string }[]
   created_at: string
   expires_at: string
   used_at: string | null

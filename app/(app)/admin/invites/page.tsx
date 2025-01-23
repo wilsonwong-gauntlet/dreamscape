@@ -36,6 +36,7 @@ export default async function InvitesPage() {
       team_id,
       token,
       teams (
+        id,
         name
       ),
       created_at,

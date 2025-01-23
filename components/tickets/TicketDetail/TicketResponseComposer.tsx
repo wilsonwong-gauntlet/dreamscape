@@ -43,6 +43,14 @@ interface TicketResponseComposerProps {
     customer?: {
       id: string
       company: string | null
+      user: {
+        id: string
+        email: string
+        user_metadata: {
+          name?: string
+          full_name?: string
+        }
+      }
     }
     assigned_agent?: {
       id: string
