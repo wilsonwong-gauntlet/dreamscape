@@ -1,4 +1,4 @@
-import { createClient } from '@/app/utils/server'
+import { createClient, adminAuthClient } from '@/utils/supabase/server'
 import { cookies } from 'next/headers'
 import { notFound } from 'next/navigation'
 import TicketDetail from '@/components/tickets/TicketDetail/TicketDetail'
@@ -59,89 +59,36 @@ export default async function TicketDetailPage({
     author: authors?.find(a => a.id === response.author_id) || null
   }))
 
-  // Fetch ticket history
+  // First fetch history entries
   const { data: history, error: historyError } = await supabase
     .from('ticket_history')
-    .select('*')
+    .select()
     .eq('ticket_id', params.id)
     .order('created_at', { ascending: true })
 
   if (historyError) {
     console.error('Error fetching history:', historyError)
-    // Don't throw here, just show empty history
   }
 
-  // Get assigned agent details if present
-  let assignedAgentDetails = null
-  if (ticket?.assigned_agent_id) {
-    const { data: agentUser } = await supabase
-      .from('auth.users')
-      .select('email, raw_user_meta_data')
-      .eq('id', ticket.assigned_agent_id)
-      .single()
-    
-    if (agentUser) {
-      assignedAgentDetails = {
-        ...ticket.assigned_agent,
-        email: agentUser.email,
-        name: agentUser.raw_user_meta_data?.name
+  // Then fetch actor details for all history entries
+  const actorIds = Array.from(new Set((history || []).map(h => h.actor_id)))
+  console.log('Actor IDs:', actorIds)
+  
+  // Fetch actor details using admin auth client
+  const actorPromises = actorIds.map(id => adminAuthClient.getUserById(id))
+  const actorResults = await Promise.all(actorPromises)
+  const actors = actorResults
+    .filter(result => result.data?.user !== null)
+    .map(result => {
+      const user = result.data.user!
+      return {
+        id: user.id,
+        email: user.email,
+        user_metadata: user.user_metadata
       }
-    }
-  }
+    })
 
-  // Combine all the data
-  const ticketData = {
-    ...ticket,
-    assigned_agent: assignedAgentDetails,
-    responses: responsesWithAuthors,
-    history: history || [],
-    tags: ticket.tags || []
-  }
-
-  const handleStatusChange = async (status: string) => {
-    'use server'
-    const supabase = await createClient()
-    await supabase
-      .from('tickets')
-      .update({ status })
-      .eq('id', params.id)
-  }
-
-  const handleAssigneeChange = async (agentId: string) => {
-    'use server'
-    const supabase = await createClient()
-    await supabase
-      .from('tickets')
-      .update({ assigned_agent_id: agentId })
-      .eq('id', params.id)
-  }
-
-  const handleTagsChange = async (tags: string[]) => {
-    'use server'
-    const supabase = await createClient()
-    await supabase
-      .from('tickets')
-      .update({ tags })
-      .eq('id', params.id)
-  }
-
-  const handlePriorityChange = async (priority: string) => {
-    'use server'
-    const supabase = await createClient()
-    await supabase
-      .from('tickets')
-      .update({ priority })
-      .eq('id', params.id)
-  }
-
-  const handleTeamChange = async (teamId: string) => {
-    'use server'
-    const supabase = await createClient()
-    await supabase
-      .from('tickets')
-      .update({ team_id: teamId })
-      .eq('id', params.id)
-  }
+  console.log('Actors from DB:', actors)
 
   // Fetch active agents
   const { data: agents } = await supabase
@@ -175,6 +122,183 @@ export default async function TicketDetailPage({
       displayName: `${name || 'Unknown'} (${agent.role}${agent.team_id ? ' - ' + (teams?.find(t => t.id === agent.team_id)?.name || '') : ''})`
     }
   }) || []
+
+  // Format history entries
+  const formattedHistory = (history || []).map(entry => {
+    const actor = actors?.find(a => a.id === entry.actor_id)
+    console.log('Found actor for entry:', entry.id, actor)
+    const actorName = actor?.user_metadata?.name || actor?.email || 'System'
+    console.log('Actor name resolved to:', actorName)
+    let details = ''
+    
+    // Format details based on action type
+    if (entry.action === 'update') {
+      const changes = entry.changes || {}
+      if ('status' in changes) {
+        details = `Changed status to "${changes.status}"`
+      } else if ('priority' in changes) {
+        details = `Changed priority to "${changes.priority}"`
+      } else if ('team_id' in changes) {
+        const teamName = teams?.find(t => t.id === changes.team_id)?.name
+        details = `Assigned to team "${teamName || changes.team_id}"`
+      } else if ('assigned_agent_id' in changes) {
+        const agent = agents?.find(a => a.id === changes.assigned_agent_id)
+        const agentName = agent?.name || changes.assigned_agent_id
+        details = `Assigned to agent "${agentName}"`
+      } else if ('tags' in changes) {
+        const tagList = Array.isArray(changes.tags) ? changes.tags.join(', ') : changes.tags
+        details = `Updated tags to [${tagList}]`
+      } else {
+        // Fallback for other updates
+        details = Object.entries(changes)
+          .map(([key, value]) => `Updated ${key.replace('_', ' ')} to "${value}"`)
+          .join(', ')
+      }
+    } else if (entry.action === 'add_response') {
+      if (entry.changes?.is_internal) {
+        details = 'Added internal note: '
+      } else {
+        details = 'Added response: '
+      }
+      if (entry.changes?.content) {
+        details += entry.changes.content.slice(0, 100)
+        if (entry.changes.content.length > 100) {
+          details += '...'
+        }
+      }
+    }
+
+    return {
+      id: entry.id,
+      actor: actorName,
+      action: entry.action,
+      timestamp: entry.created_at,
+      details
+    }
+  })
+
+  // Get assigned agent details if present
+  let assignedAgentDetails = null
+  if (ticket?.assigned_agent_id) {
+    const { data: agentUser } = await supabase.auth.admin.getUserById(ticket.assigned_agent_id)
+    
+    if (agentUser?.user) {
+      assignedAgentDetails = {
+        ...ticket.assigned_agent,
+        email: agentUser.user.email,
+        name: agentUser.user.user_metadata?.name
+      }
+    }
+  }
+
+  // Combine all the data
+  const ticketData = {
+    ...ticket,
+    assigned_agent: assignedAgentDetails,
+    responses: responsesWithAuthors,
+    history: formattedHistory,
+    tags: ticket.tags || []
+  }
+
+  const handleStatusChange = async (status: string) => {
+    'use server'
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
+    await supabase
+      .from('tickets')
+      .update({ status })
+      .eq('id', params.id)
+
+    // Add history entry
+    await supabase.from('ticket_history').insert({
+      ticket_id: params.id,
+      actor_id: user.id,
+      action: 'update',
+      changes: { status }
+    })
+  }
+
+  const handleAssigneeChange = async (agentId: string) => {
+    'use server'
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
+    await supabase
+      .from('tickets')
+      .update({ assigned_agent_id: agentId })
+      .eq('id', params.id)
+
+    // Add history entry
+    await supabase.from('ticket_history').insert({
+      ticket_id: params.id,
+      actor_id: user.id,
+      action: 'update',
+      changes: { assigned_agent_id: agentId }
+    })
+  }
+
+  const handleTagsChange = async (tags: string[]) => {
+    'use server'
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
+    await supabase
+      .from('tickets')
+      .update({ tags })
+      .eq('id', params.id)
+
+    // Add history entry
+    await supabase.from('ticket_history').insert({
+      ticket_id: params.id,
+      actor_id: user.id,
+      action: 'update',
+      changes: { tags }
+    })
+  }
+
+  const handlePriorityChange = async (priority: string) => {
+    'use server'
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
+    await supabase
+      .from('tickets')
+      .update({ priority })
+      .eq('id', params.id)
+
+    // Add history entry
+    await supabase.from('ticket_history').insert({
+      ticket_id: params.id,
+      actor_id: user.id,
+      action: 'update',
+      changes: { priority }
+    })
+  }
+
+  const handleTeamChange = async (teamId: string) => {
+    'use server'
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
+    await supabase
+      .from('tickets')
+      .update({ team_id: teamId })
+      .eq('id', params.id)
+
+    // Add history entry
+    await supabase.from('ticket_history').insert({
+      ticket_id: params.id,
+      actor_id: user.id,
+      action: 'update',
+      changes: { team_id: teamId }
+    })
+  }
 
   return (
     <TicketDetail
