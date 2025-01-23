@@ -93,8 +93,9 @@ export async function POST(
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const id = (await params).id
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -110,7 +111,7 @@ export async function GET(
     let query = supabase
       .from('ticket_responses')
       .select('*')
-      .eq('ticket_id', params.id)
+      .eq('ticket_id', id)
       .order('created_at', { ascending: true })
 
     if (!includeInternal) {

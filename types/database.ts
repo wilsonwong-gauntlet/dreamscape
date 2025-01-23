@@ -1,5 +1,3 @@
-import { TicketStatus, TicketPriority } from './routing'
-
 export interface Database {
   public: {
     Tables: {
