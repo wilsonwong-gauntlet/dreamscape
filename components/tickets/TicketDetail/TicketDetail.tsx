@@ -122,12 +122,21 @@ export default function TicketDetail({
   const totalHistoryPages = Math.ceil((ticket.history?.length || 0) / ITEMS_PER_PAGE)
   const totalResponsePages = Math.ceil((ticket.responses?.length || 0) / ITEMS_PER_PAGE)
   
-  // Initialize to first page
+  // Initialize to first page since newest items are at the start
   const [historyPage, setHistoryPage] = useState(1)
   const [responsesPage, setResponsesPage] = useState(1)
 
   useEffect(() => {
-    setTicket(initialTicket)
+    setTicket(prev => ({
+      ...initialTicket,
+      // Sort history and responses in reverse chronological order
+      history: initialTicket.history.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      ),
+      responses: initialTicket.responses.sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+    }))
   }, [initialTicket])
   
   const handleStatusChange = async (newStatus: TicketStatus) => {
@@ -146,6 +155,7 @@ export default function TicketDetail({
           ...prev.history
         ]
       }))
+      setHistoryPage(1)
       await onStatusChange(newStatus)
     } catch (error) {
       setTicket(prev => ({
@@ -172,6 +182,7 @@ export default function TicketDetail({
           ...prev.history
         ]
       }))
+      setHistoryPage(1)
       await onPriorityChange(newPriority)
     } catch (error) {
       setTicket(prev => ({
@@ -200,6 +211,7 @@ export default function TicketDetail({
             ...prev.history
           ]
         }))
+        setHistoryPage(1)
         await onTeamChange(null)
         return
       }
@@ -223,6 +235,7 @@ export default function TicketDetail({
           ...prev.history
         ]
       }))
+      setHistoryPage(1)
       await onTeamChange(teamId)
     } catch (error) {
       setTicket(prev => ({
@@ -253,6 +266,7 @@ export default function TicketDetail({
             ...prev.history
           ]
         }))
+        setHistoryPage(1)
         await onAssigneeChange(null)
         return
       }
@@ -280,6 +294,7 @@ export default function TicketDetail({
           ...prev.history
         ]
       }))
+      setHistoryPage(1)
       await onAssigneeChange(agentId)
     } catch (error) {
       setTicket(prev => ({
@@ -306,6 +321,7 @@ export default function TicketDetail({
           ...prev.history
         ]
       }))
+      setHistoryPage(1)
       await onTagsChange(newTags)
     } catch (error) {
       setTicket(prev => ({
@@ -328,19 +344,15 @@ export default function TicketDetail({
     await handleTagsChange(updatedTags)
   }
 
-  const paginatedHistory = ticket.history
-    ?.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    ?.slice(
-      (historyPage - 1) * ITEMS_PER_PAGE,
-      historyPage * ITEMS_PER_PAGE
-    )
+  const paginatedHistory = ticket.history?.slice(
+    (historyPage - 1) * ITEMS_PER_PAGE,
+    historyPage * ITEMS_PER_PAGE
+  )
 
-  const paginatedResponses = ticket.responses
-    ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    ?.slice(
-      (responsesPage - 1) * ITEMS_PER_PAGE,
-      responsesPage * ITEMS_PER_PAGE
-    )
+  const paginatedResponses = ticket.responses?.slice(
+    (responsesPage - 1) * ITEMS_PER_PAGE,
+    responsesPage * ITEMS_PER_PAGE
+  )
 
   const statusColors = {
     new: 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300',
@@ -358,7 +370,9 @@ export default function TicketDetail({
   } as const
 
   const handleResponseAdded = () => {
-    // Force a refresh of the response list by changing its key
+    // Reset to first page to show new response
+    setResponsesPage(1)
+    // Update response key to force composer refresh
     setResponseKey(prev => prev + 1)
   }
 
