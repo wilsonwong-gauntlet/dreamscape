@@ -1,5 +1,5 @@
 import { createClient as createBrowserClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -18,21 +18,32 @@ export const adminClient = createBrowserClient(supabaseUrl, supabaseServiceRoleK
 export const adminAuthClient = adminClient.auth.admin
 
 // Regular client for user operations
-export const createClient = () => {
-  const cookieStore = cookies()
+export const createClient = async () => {
   return createServerClient(
-    supabaseUrl,
-    supabaseAnonKey,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
+        async get(name: string) {
+          const cookieStore = await cookies()
+          return cookieStore.get(name)?.value ?? ''
         },
-        set(name: string, value: string, options: { path: string; maxAge?: number; domain?: string; sameSite?: string; secure?: boolean }) {
-          cookieStore.set({ name, value, ...options })
+        async set(name: string, value: string, options: CookieOptions) {
+          const cookieStore = await cookies()
+          if (value) {
+            cookieStore.set({
+              name,
+              value,
+              ...options,
+            })
+          }
         },
-        remove(name: string, options: { path: string }) {
-          cookieStore.set({ name, value: '', ...options })
+        async remove(name: string, options: CookieOptions) {
+          const cookieStore = await cookies()
+          cookieStore.delete({
+            name,
+            ...options,
+          })
         },
       },
     }

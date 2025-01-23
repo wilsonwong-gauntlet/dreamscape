@@ -10,7 +10,7 @@ export async function POST(
 ) {
   const id = (await params).slug
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
