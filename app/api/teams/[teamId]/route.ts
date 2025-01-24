@@ -97,4 +97,60 @@ export async function PATCH(
     console.error('Error updating team:', error)
     return new NextResponse('Error updating team', { status: 500 })
   }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ teamId: string }> }
+) {
+  const teamId = (await params).teamId
+  const supabase = await createClient()
+
+  try {
+    // First check if team has any active tickets
+    const { data: activeTickets, error: ticketsError } = await supabase
+      .from('tickets')
+      .select('id')
+      .eq('team_id', teamId)
+      .eq('status', 'open')
+      .limit(1)
+
+    if (ticketsError) throw ticketsError
+    
+    if (activeTickets && activeTickets.length > 0) {
+      return new NextResponse(
+        'Cannot delete team with active tickets. Please reassign or close all tickets first.',
+        { status: 400 }
+      )
+    }
+
+    // Then check if team has any agents
+    const { data: agents, error: agentsError } = await supabase
+      .from('agents')
+      .select('id')
+      .eq('team_id', teamId)
+      .limit(1)
+
+    if (agentsError) throw agentsError
+
+    if (agents && agents.length > 0) {
+      return new NextResponse(
+        'Cannot delete team with assigned agents. Please remove all agents first.',
+        { status: 400 }
+      )
+    }
+
+    // If no active tickets or agents, proceed with deletion
+    const { error: deleteError } = await supabase
+      .from('teams')
+      .delete()
+      .eq('id', teamId)
+
+    if (deleteError) throw deleteError
+
+    return new NextResponse(null, { status: 204 })
+  } catch (error) {
+    console.error('Error deleting team:', error)
+    return new NextResponse('Error deleting team', { status: 500 })
+  }
 } 

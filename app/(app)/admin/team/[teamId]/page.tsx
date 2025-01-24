@@ -14,9 +14,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { X, Loader2 } from "lucide-react"
+import { X, Loader2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import type { Team, UpdateTeamInput, DaySchedule } from '@/types/team'
 
@@ -286,13 +297,58 @@ export default function EditTeamPage({ params }: { params: Promise<{ teamId: str
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-4">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
-          </Button>
+        <div className="flex justify-between gap-4">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" className="gap-2">
+                <Trash2 className="h-4 w-4" />
+                Delete Team
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure you want to delete this team?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. The team will be permanently deleted.
+                  Make sure there are no active tickets or assigned agents before proceeding.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    try {
+                      const response = await fetch(`/api/teams/${teamId}`, {
+                        method: 'DELETE',
+                      })
+
+                      if (!response.ok) {
+                        const error = await response.text()
+                        throw new Error(error)
+                      }
+
+                      toast.success('Team deleted successfully')
+                      router.push('/admin/team')
+                    } catch (error) {
+                      console.error('Error deleting team:', error)
+                      toast.error(error instanceof Error ? error.message : 'Failed to delete team')
+                    }
+                  }}
+                  className="bg-destructive hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <div className="flex gap-4 ml-auto">
+            <Button type="button" variant="outline" onClick={() => router.back()}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </div>
       </form>
     </div>
