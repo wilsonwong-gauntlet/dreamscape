@@ -1,3 +1,11 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
 export interface Database {
   public: {
     Tables: {
@@ -5,23 +13,46 @@ export interface Database {
         Row: {
           id: string
           name: string
-          description: string | null
-          created_at: string | null
-          updated_at: string | null
+          description: string
+          time_zone: string
+          focus_areas: string[]
+          max_capacity: number | null
+          operating_hours: {
+            monday: { start: string; end: string } | null
+            tuesday: { start: string; end: string } | null
+            wednesday: { start: string; end: string } | null
+            thursday: { start: string; end: string } | null
+            friday: { start: string; end: string } | null
+            saturday: { start: string; end: string } | null
+            sunday: { start: string; end: string } | null
+          }
+          is_backup: boolean
+          created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
           name: string
-          description?: string | null
-          created_at?: string | null
-          updated_at?: string | null
+          description?: string
+          time_zone?: string
+          focus_areas?: string[]
+          max_capacity?: number | null
+          operating_hours?: Json
+          is_backup?: boolean
+          created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           name?: string
-          description?: string | null
-          created_at?: string | null
-          updated_at?: string | null
+          description?: string
+          time_zone?: string
+          focus_areas?: string[]
+          max_capacity?: number | null
+          operating_hours?: Json
+          is_backup?: boolean
+          created_at?: string
+          updated_at?: string
         }
       }
       agents: {
@@ -31,8 +62,8 @@ export interface Database {
           role: string
           status: string
           skills: string[]
-          created_at: string | null
-          updated_at: string | null
+          created_at: string
+          updated_at: string
         }
         Insert: {
           id: string
@@ -40,8 +71,8 @@ export interface Database {
           role: string
           status?: string
           skills?: string[]
-          created_at?: string | null
-          updated_at?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -49,8 +80,8 @@ export interface Database {
           role?: string
           status?: string
           skills?: string[]
-          created_at?: string | null
-          updated_at?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
       tickets: {
@@ -171,6 +202,9 @@ export interface Database {
         }
       }
     }
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
       evaluate_routing_rules: {
         Args: {
@@ -182,6 +216,9 @@ export interface Database {
           action_target: string
         }[]
       }
+    }
+    Enums: {
+      [_ in never]: never
     }
   }
 }
