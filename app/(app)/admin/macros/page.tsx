@@ -154,9 +154,9 @@ export default function MacrosPage() {
   )
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Response Macros</h1>
+        <h1 className="text-2xl font-bold">Response Macros</h1>
         <Button onClick={() => setShowCreateDialog(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Create Macro
@@ -250,117 +250,88 @@ export default function MacrosPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>{editingMacro ? 'Edit Macro' : 'Create Macro'}</DialogTitle>
+            <DialogTitle>{editingMacro ? 'Edit Macro' : 'Create New Macro'}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter macro title"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="content">Content</Label>
-              <Textarea
-                id="content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Enter macro content"
-                className="min-h-[200px]"
-                required
-              />
-              <p className="text-sm text-muted-foreground">
-                Available variables:
-                <br />
-                Ticket: {'{ticket.id}'}, {'{ticket.title}'}, {'{ticket.status}'}, {'{ticket.priority}'}, {'{ticket.source}'}, {'{ticket.description}'}, {'{ticket.created_at}'}, {'{ticket.updated_at}'}
-                <br />
-                Customer: {'{customer.id}'}, {'{customer.name}'}, {'{customer.email}'}, {'{customer.created_at}'}
-                <br />
-                Agent: {'{agent.name}'}, {'{agent.email}'}, {'{agent.role}'}
-                <br />
-                Team: {'{team.name}'}, {'{team.id}'}
-                <br />
-                Time: {'{date}'}, {'{time}'}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Input
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter macro description"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="Enter macro category"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Custom Variables</Label>
-              <div className="flex gap-2">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
                 <Input
-                  value={newVariable}
-                  onChange={(e) => setNewVariable(e.target.value)}
-                  placeholder="Enter variable name"
-                  className="flex-1"
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
                 />
-                <Button type="button" onClick={addVariable}>Add</Button>
               </div>
-              {variables.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-2">
-                  {variables.map((variable, index) => (
-                    <Badge
-                      key={index}
-                      variant="secondary"
-                      className="pr-1.5"
-                    >
-                      {variable}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-4 w-4 ml-1 hover:bg-transparent"
-                        onClick={() => removeVariable(index)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </Badge>
-                  ))}
+              <div className="space-y-2">
+                <Label htmlFor="content">Content</Label>
+                <Textarea
+                  id="content"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  required
+                  rows={5}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Input
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <Input
+                  id="category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Variables</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newVariable}
+                    onChange={(e) => setNewVariable(e.target.value)}
+                    placeholder="Add variable"
+                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addVariable())}
+                  />
+                  <Button type="button" onClick={addVariable}>Add</Button>
                 </div>
-              )}
+                {variables.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {variables.map((variable, index) => (
+                      <Badge key={index} variant="secondary">
+                        {variable}
+                        <button
+                          type="button"
+                          onClick={() => removeVariable(index)}
+                          className="ml-1 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={handleCloseDialog}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {editingMacro ? 'Updating...' : 'Creating...'}
                   </>
                 ) : (
-                  <>
-                    <FileText className="h-4 w-4 mr-2" />
-                    {editingMacro ? 'Update' : 'Create'} Macro
-                  </>
+                  editingMacro ? 'Update Macro' : 'Create Macro'
                 )}
               </Button>
             </div>
