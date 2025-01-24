@@ -444,7 +444,7 @@ export default function TicketDetail({
                 <div className="flex items-center gap-1.5 text-gray-600">
                   <User className="h-3.5 w-3.5 text-gray-400" />
                   <span className={ticket.assigned_agent ? "" : "italic text-gray-400"}>
-                    {ticket.assigned_agent?.user?.email || 'Unassigned'}
+                    {ticket.assigned_agent?.email || 'Unassigned'}
                   </span>
                 </div>
                 {ticket.team && (
@@ -628,7 +628,7 @@ export default function TicketDetail({
                       "font-medium truncate",
                       ticket.assigned_agent ? "text-gray-700" : "text-gray-400 italic"
                     )}>
-                      {ticket.assigned_agent?.user?.email || 'Unassigned'}
+                      {ticket.assigned_agent?.email || 'Unassigned'}
                     </span>
                     <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-auto" />
                   </div>
