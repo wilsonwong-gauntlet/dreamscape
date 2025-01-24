@@ -9,86 +9,166 @@ interface MetricTrend {
   insight: string
 }
 
+interface PeriodData {
+  period: string
+  totalTickets: number
+  resolvedTickets: number
+  satisfactionScores: number[]
+  resolutionTimes: number[]
+}
+
+interface PeriodDataMap {
+  [key: string]: PeriodData
+}
+
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const period = searchParams.get('period') || 'weekly'
-  
-  const supabase = await createClient()
-
   try {
-    // Get historical data for the last 2 periods
-    const now = new Date()
-    let startDate = new Date()
-    const periodLengths: Record<string, number> = {
-      daily: 1,
-      weekly: 7,
-      monthly: 30,
-      quarterly: 90
-    }
-    const periodLength = periodLengths[period] || 7 // Default to weekly
-    
-    startDate.setDate(now.getDate() - (periodLength * 2))
+    const searchParams = new URL(request.url).searchParams
+    const period = searchParams.get('period') || 'weekly'
+    const teamId = searchParams.get('teamId')
 
-    const { data: history, error: historyError } = await supabase
+    // Calculate date range based on period
+    const now = new Date()
+    const startDate = new Date()
+    let intervals = 12 // Default to 12 data points
+
+    switch (period) {
+      case 'daily':
+        startDate.setDate(now.getDate() - 14) // 2 weeks of daily data
+        intervals = 14
+        break
+      case 'weekly':
+        startDate.setDate(now.getDate() - 84) // 12 weeks of weekly data
+        break
+      case 'monthly':
+        startDate.setMonth(now.getMonth() - 12) // 12 months of monthly data
+        break
+      case 'quarterly':
+        startDate.setMonth(now.getMonth() - 36) // 12 quarters of quarterly data
+        break
+    }
+
+    const supabase = await createClient()
+
+    // Fetch historical data
+    const query = supabase
       .from('team_performance_history')
       .select('*')
       .gte('period_start', startDate.toISOString())
-      .lte('period_end', now.toISOString())
       .order('period_start', { ascending: true })
 
-    if (historyError) throw historyError
-
-    const trends: MetricTrend[] = []
-
-    if (history && history.length >= 2) {
-      const current = history[history.length - 1].metrics
-      const previous = history[history.length - 2].metrics
-
-      // Analyze ticket volume trend
-      const ticketChange = ((current.totalTickets - previous.totalTickets) / previous.totalTickets) * 100
-      trends.push({
-        metric: 'Ticket Volume',
-        value: current.totalTickets,
-        change: ticketChange,
-        status: ticketChange > 0 ? 'up' : ticketChange < 0 ? 'down' : 'neutral',
-        insight: generateTicketVolumeInsight(current, previous)
-      })
-
-      // Analyze resolution time trend
-      const timeChange = ((current.averageResolutionTime - previous.averageResolutionTime) / previous.averageResolutionTime) * 100
-      trends.push({
-        metric: 'Resolution Time',
-        value: current.averageResolutionTime,
-        change: timeChange,
-        status: timeChange > 0 ? 'down' : timeChange < 0 ? 'up' : 'neutral', // Inverse because lower is better
-        insight: generateResolutionTimeInsight(current, previous)
-      })
-
-      // Analyze customer satisfaction trend
-      const satChange = ((current.customerSatisfaction - previous.customerSatisfaction) / previous.customerSatisfaction) * 100
-      trends.push({
-        metric: 'Customer Satisfaction',
-        value: current.customerSatisfaction,
-        change: satChange,
-        status: satChange > 0 ? 'up' : satChange < 0 ? 'down' : 'neutral',
-        insight: generateSatisfactionInsight(current, previous)
-      })
-
-      // Analyze AI assistance trend
-      const aiChange = ((current.aiAssistRate - previous.aiAssistRate) / previous.aiAssistRate) * 100
-      trends.push({
-        metric: 'AI Assistance',
-        value: current.aiAssistRate,
-        change: aiChange,
-        status: aiChange > 0 ? 'up' : aiChange < 0 ? 'down' : 'neutral',
-        insight: generateAIAssistInsight(current, previous)
-      })
+    if (teamId) {
+      query.eq('team_id', teamId)
     }
+
+    const { data: history, error: historyError } = await query
+
+    if (historyError) {
+      console.error('Error fetching performance history:', historyError)
+      return NextResponse.json(
+        { error: 'Failed to fetch performance history' },
+        { status: 500 }
+      )
+    }
+
+    // If no historical data, fetch and calculate from tickets table
+    if (!history || history.length === 0) {
+      const { data: tickets, error: ticketsError } = await supabase
+        .from('tickets')
+        .select('id, team_id, status, created_at, updated_at, satisfaction_score')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: true })
+
+      if (ticketsError) {
+        console.error('Error fetching tickets:', ticketsError)
+        return NextResponse.json(
+          { error: 'Failed to fetch tickets' },
+          { status: 500 }
+        )
+      }
+
+      // Group tickets by period and calculate metrics
+      const periodData = tickets.reduce((acc: PeriodDataMap, ticket) => {
+        const ticketDate = new Date(ticket.created_at)
+        let periodKey: string
+
+        switch (period) {
+          case 'daily':
+            periodKey = ticketDate.toISOString().split('T')[0]
+            break
+          case 'weekly':
+            const week = Math.floor(ticketDate.getDate() / 7)
+            periodKey = `${ticketDate.getFullYear()}-W${week}`
+            break
+          case 'monthly':
+            periodKey = `${ticketDate.getFullYear()}-${ticketDate.getMonth() + 1}`
+            break
+          case 'quarterly':
+            const quarter = Math.floor(ticketDate.getMonth() / 3) + 1
+            periodKey = `${ticketDate.getFullYear()}-Q${quarter}`
+            break
+          default:
+            periodKey = ticketDate.toISOString().split('T')[0]
+        }
+
+        if (!acc[periodKey]) {
+          acc[periodKey] = {
+            period: periodKey,
+            totalTickets: 0,
+            resolvedTickets: 0,
+            satisfactionScores: [],
+            resolutionTimes: []
+          }
+        }
+
+        acc[periodKey].totalTickets++
+
+        if (ticket.status === 'resolved') {
+          acc[periodKey].resolvedTickets++
+          const resolutionTime = new Date(ticket.updated_at).getTime() - new Date(ticket.created_at).getTime()
+          acc[periodKey].resolutionTimes.push(resolutionTime)
+        }
+
+        if (ticket.satisfaction_score) {
+          acc[periodKey].satisfactionScores.push(ticket.satisfaction_score)
+        }
+
+        return acc
+      }, {})
+
+      // Calculate final metrics for each period
+      const trends = Object.values(periodData).map((period: PeriodData) => ({
+        period: period.period,
+        metrics: {
+          total: period.totalTickets,
+          resolved: period.resolvedTickets,
+          resolutionRate: (period.resolvedTickets / period.totalTickets) * 100,
+          avgResolutionTime: period.resolutionTimes.length > 0
+            ? period.resolutionTimes.reduce((a: number, b: number) => a + b, 0) / period.resolutionTimes.length / (1000 * 60) // Convert to minutes
+            : 0,
+          customerSatisfaction: period.satisfactionScores.length > 0
+            ? period.satisfactionScores.reduce((a: number, b: number) => a + b, 0) / period.satisfactionScores.length
+            : 0,
+          satisfactionResponses: period.satisfactionScores.length
+        }
+      }))
+
+      return NextResponse.json(trends)
+    }
+
+    // Use historical data if available
+    const trends = history.map(entry => ({
+      period: entry.period_start,
+      metrics: entry.metrics
+    }))
 
     return NextResponse.json(trends)
   } catch (error) {
-    console.error('Error analyzing trends:', error)
-    return new NextResponse('Error analyzing trends', { status: 500 })
+    console.error('Error in trends endpoint:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }
 

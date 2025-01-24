@@ -23,6 +23,7 @@ import {
 import { AIMetricsCard } from "@/components/analytics/AIMetricsCard"
 import { OverviewMetricsCard } from "@/components/analytics/OverviewMetricsCard"
 import { TeamPerformanceCard } from "@/components/analytics/TeamPerformanceCard"
+import TrendsCard from '@/components/analytics/TrendsCard'
 
 export default function AnalyticsPage() {
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly'>('daily')
@@ -71,14 +72,9 @@ export default function AnalyticsPage() {
         </TabsContent>
 
         <TabsContent value="trends" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Trend Analysis</CardTitle>
-            </CardHeader>
-            <CardContent>
-              Coming soon: Trend analysis and historical comparisons
-            </CardContent>
-          </Card>
+          <div className="grid gap-6">
+            <TrendsCard period={period} />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
