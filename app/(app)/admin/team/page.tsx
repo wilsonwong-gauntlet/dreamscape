@@ -65,8 +65,8 @@ export default function TeamsPage() {
     router.push(`/admin/team/${teamId}/schedule`)
   }
 
-  const handleViewMetrics = (teamId: string) => {
-    router.push(`/admin/team/${teamId}/metrics`)
+  const handleViewPerformance = (teamId: string) => {
+    router.push(`/admin/team/${teamId}/performance`)
   }
 
   const filteredTeams = teams.filter(team =>
@@ -160,7 +160,7 @@ export default function TeamsPage() {
                             <Clock className="h-4 w-4 mr-2" />
                             Coverage Schedule
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleViewMetrics(team.id)}>
+                          <DropdownMenuItem onClick={() => handleViewPerformance(team.id)}>
                             <Gauge className="h-4 w-4 mr-2" />
                             Performance Metrics
                           </DropdownMenuItem>

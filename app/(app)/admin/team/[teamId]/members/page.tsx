@@ -119,7 +119,11 @@ export default function TeamMembersPage({ params }: { params: Promise<{ teamId: 
         <CardHeader>
           <CardTitle>Members</CardTitle>
           <CardDescription>
-            A list of all members in this team and their roles.
+            Team roles and their capabilities:
+            • Admin - Full system access and configuration
+            • Manager - Team oversight and resource management
+            • Lead - Day-to-day team supervision
+            • Agent - Basic support operations
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -129,6 +133,7 @@ export default function TeamMembersPage({ params }: { params: Promise<{ teamId: 
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Permissions</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
@@ -148,6 +153,22 @@ export default function TeamMembersPage({ params }: { params: Promise<{ teamId: 
                       <Shield className="h-3 w-3 mr-1" />
                       {member.role}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1 flex-wrap">
+                      {member.role === 'admin' && (
+                        <Badge variant="outline" className="text-xs">Full Access</Badge>
+                      )}
+                      {member.role === 'manager' && (
+                        <Badge variant="outline" className="text-xs">Team Management</Badge>
+                      )}
+                      {(member.role === 'lead' || member.role === 'manager') && (
+                        <Badge variant="outline" className="text-xs">Analytics</Badge>
+                      )}
+                      {['agent', 'lead', 'manager', 'admin'].includes(member.role) && (
+                        <Badge variant="outline" className="text-xs">Support</Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant={member.status === 'active' ? 'default' : 'secondary'}>
