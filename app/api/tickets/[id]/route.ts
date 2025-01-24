@@ -110,99 +110,48 @@ export async function PUT(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const id = (await params).slug
+  const id = (await params).id
   try {
     const supabase = await createClient()
+    const body = await request.json()
 
-    // Get current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Get the update data from the request
-    const updates = await request.json()
-    
-    // Validate status enum if it's being updated
-    if (updates.status && !['new', 'open', 'pending', 'resolved', 'closed'].includes(updates.status)) {
+    // Validate the status is one of the allowed values
+    if (body.status && !['new', 'open', 'pending', 'resolved', 'closed'].includes(body.status)) {
       return NextResponse.json(
         { error: 'Invalid status value' },
         { status: 400 }
       )
     }
 
-    // Validate the ticket exists and get current state
-    const { data: currentTicket, error: ticketError } = await supabase
+    const { data: ticket, error } = await supabase
       .from('tickets')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (ticketError || !currentTicket) {
-      return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
-    }
-
-    // Prepare update data
-    const updateData = {
-      ...updates,
-      updated_at: new Date().toISOString()
-    }
-
-    // First update the ticket
-    const { data: updatedData, error: updateError } = await supabase
-      .from('tickets')
-      .update(updateData)
+      .update(body)
       .eq('id', id)
       .select()
-
-    if (updateError) {
-      console.error('Error updating ticket:', updateError)
-      return NextResponse.json(
-        { error: 'Failed to update ticket: ' + updateError.message },
-        { status: 500 }
-      )
-    }
-
-    // Then fetch the updated ticket with relations
-    const { data: updatedTicket, error: fetchError } = await supabase
-      .from('tickets')
-      .select(`
-        *,
-        customer:customers(*),
-        assigned_agent:agents(*),
-        team:teams(*)
-      `)
-      .eq('id', id)
       .single()
 
-    if (fetchError) {
-      console.error('Error fetching updated ticket:', fetchError)
-      return NextResponse.json(
-        { error: 'Failed to fetch updated ticket' },
-        { status: 500 }
-      )
+    if (error) throw error
+
+    // Record the status change in ticket_history if status was updated
+    if (body.status) {
+      const { error: historyError } = await supabase
+        .from('ticket_history')
+        .insert({
+          ticket_id: id,
+          action: 'status_update',
+          changes: { status: { from: ticket.status, to: body.status } }
+        })
+
+      if (historyError) throw historyError
     }
 
-    // Create history entry
-    const { error: historyError } = await supabase.from('ticket_history').insert({
-      ticket_id: id,
-      actor_id: user.id,
-      action: 'update',
-      changes: updates,
-    })
-
-    if (historyError) {
-      console.error('Error creating history entry:', historyError)
-      // Don't fail the request if history creation fails
-    }
-
-    return NextResponse.json(updatedTicket)
+    return NextResponse.json(ticket)
   } catch (error) {
-    console.error('Error in PATCH /api/tickets/[id]:', error)
+    console.error('Error updating ticket:', error)
     return NextResponse.json(
-      { error: 'Internal Server Error: ' + (error as Error).message },
+      { error: 'Failed to update ticket' },
       { status: 500 }
     )
   }

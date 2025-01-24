@@ -21,9 +21,11 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import { AIMetricsCard } from "@/components/analytics/AIMetricsCard"
+import { OverviewMetricsCard } from "@/components/analytics/OverviewMetricsCard"
+import { TeamPerformanceCard } from "@/components/analytics/TeamPerformanceCard"
 
 export default function AnalyticsPage() {
-  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly'>('weekly')
+  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly'>('daily')
 
   return (
     <div className="container mx-auto py-8">
@@ -52,8 +54,8 @@ export default function AnalyticsPage() {
 
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <OverviewMetricsCard period={period} />
             <AIMetricsCard period={period} />
-            {/* Add other overview metrics cards here */}
           </div>
         </TabsContent>
 
@@ -65,14 +67,7 @@ export default function AnalyticsPage() {
         </TabsContent>
 
         <TabsContent value="teams" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Performance</CardTitle>
-            </CardHeader>
-            <CardContent>
-              Coming soon: Team-specific analytics and comparisons
-            </CardContent>
-          </Card>
+          <TeamPerformanceCard period={period} />
         </TabsContent>
 
         <TabsContent value="trends" className="space-y-4">
