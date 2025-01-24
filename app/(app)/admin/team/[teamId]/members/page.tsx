@@ -32,7 +32,7 @@ interface TeamMember {
   id: string
   name: string
   email: string
-  role: 'agent' | 'lead' | 'manager'
+  role: 'agent' | 'lead' | 'manager' | 'admin'
   status: 'active' | 'inactive'
   createdAt: string
 }
@@ -141,8 +141,9 @@ export default function TeamMembersPage({ params }: { params: Promise<{ teamId: 
                   <TableCell>{member.email}</TableCell>
                   <TableCell>
                     <Badge variant={
-                      member.role === 'manager' ? 'default' :
-                      member.role === 'lead' ? 'secondary' : 'outline'
+                      member.role === 'admin' ? 'default' :
+                      member.role === 'lead' ? 'destructive' :
+                      member.role === 'manager' ? 'secondary' : 'outline'
                     }>
                       <Shield className="h-3 w-3 mr-1" />
                       {member.role}
@@ -179,6 +180,12 @@ export default function TeamMembersPage({ params }: { params: Promise<{ teamId: 
                           disabled={member.role === 'manager'}
                         >
                           Make Manager
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleUpdateRole(member.id, 'admin')}
+                          disabled={member.role === 'admin'}
+                        >
+                          Make Admin
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
