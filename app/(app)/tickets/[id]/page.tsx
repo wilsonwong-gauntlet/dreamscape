@@ -1,7 +1,8 @@
 import { createClient, adminAuthClient } from '@/utils/supabase/server'
 import { cookies } from 'next/headers'
 import { notFound } from 'next/navigation'
-import TicketDetail from '@/components/tickets/TicketDetail/TicketDetail'
+import TicketDetailWrapper from '@/components/tickets/TicketDetail/TicketDetailWrapper'
+import { TicketSatisfactionSection } from '@/components/tickets/TicketSatisfactionSection'
 
 export default async function TicketDetailPage({
   params,
@@ -235,117 +236,21 @@ export default async function TicketDetailPage({
     tags: ticket.tags || []
   }
 
-  const handleStatusChange = async (status: string) => {
-    'use server'
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
-
-    await supabase
-      .from('tickets')
-      .update({ status })
-      .eq('id', id)
-
-    // Add history entry
-    await supabase.from('ticket_history').insert({
-      ticket_id: id,
-      actor_id: user.id,
-      action: 'update',
-      changes: { status }
-    })
-  }
-
-  const handleAssigneeChange = async (agentId: string | null) => {
-    'use server'
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
-
-    await supabase
-      .from('tickets')
-      .update({ assigned_agent_id: agentId })
-      .eq('id', id)
-
-    // Add history entry
-    await supabase.from('ticket_history').insert({
-      ticket_id: id,
-      actor_id: user.id,
-      action: 'update',
-      changes: { assigned_agent_id: agentId }
-    })
-  }
-
-  const handleTagsChange = async (tags: string[]) => {
-    'use server'
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
-
-    await supabase
-      .from('tickets')
-      .update({ tags })
-      .eq('id', id)
-
-    // Add history entry
-    await supabase.from('ticket_history').insert({
-      ticket_id: id,
-      actor_id: user.id,
-      action: 'update',
-      changes: { tags }
-    })
-  }
-
-  const handlePriorityChange = async (priority: string) => {
-    'use server'
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
-
-    await supabase
-      .from('tickets')
-      .update({ priority })
-      .eq('id', id)
-
-    // Add history entry
-    await supabase.from('ticket_history').insert({
-      ticket_id: id,
-      actor_id: user.id,
-      action: 'update',
-      changes: { priority }
-    })
-  }
-
-  const handleTeamChange = async (teamId: string | null) => {
-    'use server'
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
-
-    await supabase
-      .from('tickets')
-      .update({ team_id: teamId })
-      .eq('id', id)
-
-    // Add history entry
-    await supabase.from('ticket_history').insert({
-      ticket_id: id,
-      actor_id: user.id,
-      action: 'update',
-      changes: { team_id: teamId }
-    })
-  }
-
   return (
-    <TicketDetail
-      ticket={ticketData}
-      teams={teams || []}
-      agents={formattedAgents}
-      currentUserId={user.id}
-      onStatusChange={handleStatusChange}
-      onPriorityChange={handlePriorityChange}
-      onTeamChange={handleTeamChange}
-      onAssigneeChange={handleAssigneeChange}
-      onTagsChange={handleTagsChange}
-    />
+    <>
+      <TicketDetailWrapper
+        ticket={ticketData}
+        teams={teams || []}
+        agents={formattedAgents}
+        currentUserId={user.id}
+        ticketId={id}
+      />
+      
+      <TicketSatisfactionSection 
+        ticketId={ticketData.id}
+        status={ticketData.status}
+        satisfactionScore={ticketData.satisfaction_score}
+      />
+    </>
   )
 } 

@@ -3,15 +3,12 @@ import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
+    const searchParams = new URL(request.url).searchParams
     const period = searchParams.get('period') || 'daily'
-
-    const supabase = await createClient()
 
     // Calculate start date based on period
     const now = new Date()
     const startDate = new Date()
-    
     switch (period) {
       case 'daily':
         startDate.setDate(now.getDate() - 1)
@@ -27,63 +24,96 @@ export async function GET(request: Request) {
         break
     }
 
-    // Fetch all teams
-    const { data: teams, error: teamsError } = await supabase
-      .from('teams')
-      .select('id, name')
+    const supabase = await createClient()
 
-    if (teamsError) throw teamsError
+    // Fetch metrics from the team_metrics view
+    const { data: teamMetrics, error: metricsError } = await supabase
+      .from('team_metrics')
+      .select('*')
 
-    // Fetch tickets for each team
-    const teamMetrics = await Promise.all(
-      teams.map(async (team) => {
-        const { data: tickets, error: ticketsError } = await supabase
-          .from('tickets')
-          .select('id, status, created_at, updated_at')
-          .eq('team_id', team.id)
-          .gte('created_at', startDate.toISOString())
-          .lte('created_at', now.toISOString())
+    if (metricsError) {
+      console.error('Error fetching team metrics:', metricsError)
+      return NextResponse.json({ error: 'Failed to fetch team metrics' }, { status: 500 })
+    }
 
-        if (ticketsError) throw ticketsError
+    // Fetch recent tickets for period-specific metrics
+    const { data: tickets, error: ticketsError } = await supabase
+      .from('tickets')
+      .select('id, team_id, status, created_at, updated_at, satisfaction_score')
+      .gte('created_at', startDate.toISOString())
 
-        const resolvedTickets = tickets.filter(t => t.status === 'resolved')
-        const resolutionRate = tickets.length > 0 
-          ? (resolvedTickets.length / tickets.length) * 100 
-          : 0
+    if (ticketsError) {
+      console.error('Error fetching tickets:', ticketsError)
+      return NextResponse.json({ error: 'Failed to fetch tickets' }, { status: 500 })
+    }
 
-        // Calculate average resolution time using updated_at for resolved tickets
-        const resolutionTimes = resolvedTickets
-          .map(ticket => {
-            const created = new Date(ticket.created_at)
-            const resolved = new Date(ticket.updated_at)
-            return (resolved.getTime() - created.getTime()) / (1000 * 60) // Convert to minutes
-          })
-          .filter((time): time is number => !isNaN(time))
-
-        const averageResolutionTime = resolutionTimes.length > 0
-          ? resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length
-          : 0
-
-        // For now, return placeholder satisfaction score until we add the column
-        const customerSatisfaction = 0
-
-        return {
-          id: team.id,
-          name: team.name,
-          ticketCount: tickets.length,
-          resolutionRate,
-          averageResolutionTime,
-          customerSatisfaction
+    // Calculate period metrics for each team
+    const teamPeriodMetrics = tickets.reduce((acc: any, ticket) => {
+      if (!acc[ticket.team_id]) {
+        acc[ticket.team_id] = {
+          totalTickets: 0,
+          resolvedTickets: 0,
+          totalResolutionTime: 0,
+          satisfactionScores: [],
         }
-      })
-    )
+      }
 
-    return NextResponse.json({ teams: teamMetrics })
+      acc[ticket.team_id].totalTickets++
+      
+      if (ticket.status === 'resolved') {
+        acc[ticket.team_id].resolvedTickets++
+        const resolutionTime = new Date(ticket.updated_at).getTime() - new Date(ticket.created_at).getTime()
+        acc[ticket.team_id].totalResolutionTime += resolutionTime
+      }
+
+      if (ticket.satisfaction_score) {
+        acc[ticket.team_id].satisfactionScores.push(ticket.satisfaction_score)
+      }
+
+      return acc
+    }, {})
+
+    // Combine overall and period metrics
+    const combinedMetrics = teamMetrics.map((team: any) => {
+      const periodMetrics = teamPeriodMetrics[team.team_id] || {
+        totalTickets: 0,
+        resolvedTickets: 0,
+        totalResolutionTime: 0,
+        satisfactionScores: [],
+      }
+
+      const avgResolutionTime = periodMetrics.resolvedTickets > 0
+        ? periodMetrics.totalResolutionTime / periodMetrics.resolvedTickets / (1000 * 60) // Convert to minutes
+        : 0
+
+      const periodSatisfaction = periodMetrics.satisfactionScores.length > 0
+        ? periodMetrics.satisfactionScores.reduce((a: number, b: number) => a + b, 0) / periodMetrics.satisfactionScores.length
+        : 0
+
+      return {
+        id: team.team_id,
+        name: team.team_name,
+        metrics: {
+          total: team.total_tickets,
+          resolved: team.resolved_tickets,
+          resolutionRate: team.resolved_tickets / (team.total_tickets || 1) * 100,
+          customerSatisfaction: team.avg_satisfaction || 0,
+          satisfactionResponses: team.satisfaction_responses,
+          period: {
+            total: periodMetrics.totalTickets,
+            resolved: periodMetrics.resolvedTickets,
+            resolutionRate: periodMetrics.resolvedTickets / (periodMetrics.totalTickets || 1) * 100,
+            avgResolutionTime,
+            customerSatisfaction: periodSatisfaction,
+            satisfactionResponses: periodMetrics.satisfactionScores.length
+          }
+        }
+      }
+    })
+
+    return NextResponse.json(combinedMetrics)
   } catch (error) {
-    console.error('Error fetching team metrics:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch team metrics' },
-      { status: 500 }
-    )
+    console.error('Error in teams analytics:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 
