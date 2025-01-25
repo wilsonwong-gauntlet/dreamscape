@@ -92,18 +92,40 @@ Deno.serve(async (req: Request) => {
       messages: [
         {
           role: "system",
-          content: `You are an AI support system analyzing customer support tickets. 
-          Analyze the ticket and determine:
-          1. If you can resolve it automatically
+          content: `You are an AI support system analyzing customer support tickets.
+          You can automatically resolve tickets that:
+          1. Are common, standard procedures (including password resets, setting changes)
+          2. Can be solved with standard instructions
+          3. Don't require human verification
+          4. Don't involve account compromise or sensitive data
+
+          Examples of auto-resolvable tickets:
+          - Password changes and resets (when following standard process)
+          - Account settings modifications
+          - Feature usage instructions
+          - General platform navigation
+          - Basic troubleshooting steps
+          - General meditation or wellness tips
+
+          Examples of non-auto-resolvable tickets:
+          - Account compromise reports
+          - Personal data requests
+          - Complex technical issues
+          - Mental health concerns
+          - Billing disputes
+          - Bug reports
+          
+          For each ticket, determine:
+          1. If you can resolve it automatically (true/false)
           2. The confidence level (0-1)
-          3. If it needs human attention, provide detailed routing analysis:
+          3. Detailed routing analysis:
              - Priority level (low/medium/high/urgent)
              - Category of the issue
              - Relevant tags
-             - Complexity level
+             - Complexity level (simple/medium/complex)
              - Required expertise areas
           
-          Respond in JSON format only.`
+          Respond in JSON format only with snake_case keys.`
         },
         {
           role: "user",
@@ -128,17 +150,27 @@ Previous Interactions: ${ticket.metadata?.previous_interactions || 'None'}`
       const parsed = JSON.parse(content)
       console.log('Parsed AI response:', parsed)
       
-      // Ensure the response has the expected structure
+      // Use the specific AI team ID
+      const AI_TEAM_ID = 'c4b5b62b-df0c-44f7-9fa8-6aad40e7dfcb'
+      
+      // Determine if we can auto-resolve based on both the AI's decision and confidence
+      const confidence = Number(parsed.confidence_level) || 0
+      const aiSaysCanResolve = Boolean(parsed.can_resolve_automatically || parsed.can_resolve)
+      const confidenceThresholdMet = confidence >= 0.8
+      const canAutoResolve = aiSaysCanResolve && confidenceThresholdMet
+      
+      // Ensure the response has the expected structure and map the fields
       result = {
-        canAutoResolve: Boolean(parsed.canAutoResolve),
-        confidence: Number(parsed.confidence) || 0,
-        suggestedTeamId: parsed.suggestedTeamId,
+        canAutoResolve,
+        confidence,
+        // If ticket can be auto-resolved, assign to AI team
+        suggestedTeamId: canAutoResolve ? AI_TEAM_ID : undefined,
         routingAnalysis: {
-          priority: parsed.routingAnalysis?.priority || 'medium',
-          category: parsed.routingAnalysis?.category || 'general',
-          tags: Array.isArray(parsed.routingAnalysis?.tags) ? parsed.routingAnalysis.tags : [],
-          complexity: parsed.routingAnalysis?.complexity || 'medium',
-          expertise: Array.isArray(parsed.routingAnalysis?.expertise) ? parsed.routingAnalysis.expertise : []
+          priority: (parsed.detailed_routing_analysis?.priority_level || 'medium').toLowerCase() as 'low' | 'medium' | 'high' | 'urgent',
+          category: parsed.detailed_routing_analysis?.category_of_the_issue || 'general',
+          tags: Array.isArray(parsed.detailed_routing_analysis?.relevant_tags) ? parsed.detailed_routing_analysis.relevant_tags : [],
+          complexity: (parsed.detailed_routing_analysis?.complexity_level || 'medium').toLowerCase() as 'simple' | 'medium' | 'complex',
+          expertise: Array.isArray(parsed.detailed_routing_analysis?.required_expertise_areas) ? parsed.detailed_routing_analysis.required_expertise_areas : []
         }
       }
       console.log('Normalized result:', result)
