@@ -32,8 +32,12 @@ export default async function TicketsPage() {
     .eq('id', user.id)
     .single()
 
-  // Modify ticket query based on user role
+  if (!agent) {
+    redirect('/dashboard')
+  }
+
   console.log('Building ticket query')
+  // Fetch tickets based on user's role
   let query = supabase
     .from('tickets')
     .select(`
@@ -48,11 +52,6 @@ export default async function TicketsPage() {
     `)
     .order('created_at', { ascending: false })
     .limit(1, { foreignTable: 'ticket_responses' })
-
-  // If user is not an agent, only show their tickets
-  if (!agent) {
-    query = query.eq('customer_id', user.id)
-  }
 
   console.log('Executing ticket query')
   const { data: tickets, error: ticketsError } = await query
@@ -125,69 +124,47 @@ export default async function TicketsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      {!agent ? (
-        // Customer view - tickets only
-        <div className="py-10">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-2xl font-semibold">My Tickets</h1>
-            <a
-              href="/tickets/new"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md"
-            >
-              New Ticket
-            </a>
-          </div>
-          <TicketTable 
-            tickets={ticketsWithDetails} 
-            teams={teams || []}
-            agents={agents || []}
-            currentUserId={currentUserId || ''}
-          />
+      <Tabs defaultValue="tickets" className="h-full flex flex-col">
+        <div className="px-6 py-4 border-b bg-background">
+          <TabsList>
+            <TabsTrigger value="tickets">All Tickets</TabsTrigger>
+            <TabsTrigger value="chats" className="relative">
+              Active Chats
+              {activeChatCount ? (
+                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
+                  {activeChatCount}
+                </span>
+              ) : null}
+            </TabsTrigger>
+          </TabsList>
         </div>
-      ) : (
-        // Agent view - tickets and chats tabs
-        <Tabs defaultValue="tickets" className="h-full flex flex-col">
-          <div className="px-6 py-4 border-b bg-background">
-            <TabsList>
-              <TabsTrigger value="tickets">All Tickets</TabsTrigger>
-              <TabsTrigger value="chats" className="relative">
-                Active Chats
-                {activeChatCount ? (
-                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
-                    {activeChatCount}
-                  </span>
-                ) : null}
-              </TabsTrigger>
-            </TabsList>
-          </div>
-          
-          <div className="flex-1 overflow-hidden">
-            <TabsContent value="tickets" className="h-full">
-              <div className="py-10">
-                <div className="flex justify-between items-center mb-8">
-                  <h1 className="text-2xl font-semibold">Tickets</h1>
-                  <a
-                    href="/tickets/new"
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md"
-                  >
-                    New Ticket
-                  </a>
-                </div>
-                <TicketTable 
-                  tickets={ticketsWithDetails} 
-                  teams={teams || []}
-                  agents={agents || []}
-                  currentUserId={currentUserId || ''}
-                />
+        
+        <div className="flex-1 overflow-hidden">
+          <TabsContent value="tickets" className="h-full">
+            <div className="py-10">
+              <div className="flex justify-between items-center mb-8">
+                <h1 className="text-2xl font-semibold">Tickets</h1>
+                <a
+                  href="/tickets/new"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md"
+                >
+                  New Ticket
+                </a>
               </div>
-            </TabsContent>
-            
-            <TabsContent value="chats" className="h-full">
-              <ChatList />
-            </TabsContent>
-          </div>
-        </Tabs>
-      )}
+              <TicketTable 
+                tickets={ticketsWithDetails} 
+                teams={teams || []}
+                agents={agents || []}
+                currentUserId={currentUserId || ''}
+              />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="chats" className="h-full">
+            <ChatList />
+          </TabsContent>
+        </div>
+      </Tabs>
     </div>
   )
 } 
