@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
-import { Wand2, Loader2, MessageSquare, FileText, ThumbsUp, Bot, Lock, X, Search } from "lucide-react"
+import { Bot, Loader2, MessageSquare, FileText, Lock, Search } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -74,8 +74,6 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
   const [isInternal, setIsInternal] = useState(false)
   const [showMacros, setShowMacros] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
   const [macros, setMacros] = useState<Macro[]>([])
   const [isLoadingMacros, setIsLoadingMacros] = useState(false)
   const [macroSearch, setMacroSearch] = useState("")
@@ -250,26 +248,27 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
     setError(null)
 
     try {
-      const response = await fetch(`/api/tickets/${ticketId}/responses`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-ticket-response`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
         },
         body: JSON.stringify({
-          content: "Let me help you with that...",
-          type: 'ai',
-          is_internal: isInternal,
+          ticketId: ticketId,
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to generate AI response')
+        const errorData = await response.json()
+        console.error('Edge function error:', errorData)
+        throw new Error(errorData.error || errorData.details || 'Failed to generate AI response')
       }
 
-      const data = await response.json()
-      setContent(data.content)
-      onResponseAdded()
+      const { response: aiResponse } = await response.json()
+      setContent(aiResponse)
     } catch (err) {
+      console.error('Error generating AI response:', err)
       setError(err instanceof Error ? err.message : 'Failed to generate AI response')
     } finally {
       setIsGenerating(false)
@@ -282,22 +281,6 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
     { id: 'update', text: "I wanted to give you a quick update on your ticket. Here's what we know so far:" },
     { id: 'resolve', text: "I'm pleased to inform you that we've resolved your issue. Here's what we did:" }
   ]
-
-  const generateSuggestions = async () => {
-    setIsLoadingSuggestions(true)
-    try {
-      const response = await fetch(`/api/tickets/${ticketId}/suggest`, {
-        method: 'POST',
-      })
-      if (!response.ok) throw new Error('Failed to generate suggestions')
-      const data = await response.json()
-      setAiSuggestions(data.suggestions)
-    } catch (error) {
-      console.error('Error generating suggestions:', error)
-    } finally {
-      setIsLoadingSuggestions(false)
-    }
-  }
 
   const filteredMacros = macros.filter(macro => 
     macro.title.toLowerCase().includes(macroSearch.toLowerCase()) ||
@@ -357,64 +340,26 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={generateSuggestions}
-                    disabled={isLoadingSuggestions}
+                    onClick={generateAIResponse}
+                    disabled={isGenerating}
                     className={cn(
                       "h-8 w-8 transition-colors",
-                      isLoadingSuggestions && "bg-indigo-50 text-indigo-600"
+                      isGenerating && "bg-indigo-50 text-indigo-600"
                     )}
                   >
-                    {isLoadingSuggestions ? (
+                    {isGenerating ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Wand2 className="h-4 w-4" />
+                      <Bot className="h-4 w-4" />
                     )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Generate AI suggestions</TooltipContent>
+                <TooltipContent>Generate AI response</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
         </div>
       </div>
-
-      {/* AI Suggestions */}
-      {aiSuggestions.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-medium text-indigo-600">
-              <Bot className="h-4 w-4" />
-              <span>AI Suggestions</span>
-            </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-gray-400 hover:text-gray-600"
-              onClick={() => setAiSuggestions([])}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="grid gap-2">
-            {aiSuggestions.map((suggestion, index) => (
-              <div
-                key={index}
-                className="relative group rounded-md border border-indigo-100 bg-indigo-50/30 p-3 hover:bg-indigo-50 transition-colors"
-              >
-                <p className="text-sm pr-10">{suggestion}</p>
-                <Button
-                  className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setContent(suggestion)}
-                >
-                  <ThumbsUp className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Response Actions */}
       <div className="flex items-center justify-between pt-2">
