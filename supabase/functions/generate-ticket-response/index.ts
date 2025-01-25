@@ -8,8 +8,8 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { OpenAI } from "https://deno.land/x/openai@v4.24.0/mod.ts"
 
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': 'http://localhost:3000',
-  'Access-Control-Allow-Headers': 'apikey, content-type',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 class TicketError extends Error {
