@@ -2,7 +2,17 @@
 
 import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import TicketDetail from './TicketDetail'
+import { toast } from 'sonner'
+
+interface CustomerDetails {
+  email?: string;
+  user_metadata?: {
+    name?: string;
+    full_name?: string;
+  };
+}
 
 interface TicketDetailWrapperProps {
   ticket: any // TODO: Add proper type
@@ -21,6 +31,37 @@ export default function TicketDetailWrapper({
 }: TicketDetailWrapperProps) {
   const router = useRouter()
   const supabase = createClient()
+  const [customerDetails, setCustomerDetails] = useState<CustomerDetails | null>(null)
+
+  useEffect(() => {
+    async function fetchCustomerDetails() {
+      if (ticket.customer?.id) {
+        console.log('Fetching customer details for ID:', ticket.customer.id)
+        try {
+          const response = await fetch(`/api/customers/${ticket.customer.id}`)
+          console.log('API Response status:', response.status)
+          if (!response.ok) throw new Error('Failed to fetch customer details')
+          const data = await response.json()
+          console.log('Received customer details:', data)
+          setCustomerDetails(data)
+        } catch (error) {
+          console.error('Error fetching customer details:', error)
+          toast.error('Failed to load customer details')
+        }
+      } else {
+        console.log('No customer ID available:', ticket.customer)
+      }
+    }
+
+    fetchCustomerDetails()
+  }, [ticket.customer?.id])
+
+  // Add logging for render
+  console.log('TicketDetailWrapper render:', {
+    ticketId,
+    customerId: ticket.customer?.id,
+    customerDetails,
+  })
 
   const handleStatusChange = async (status: string) => {
     const { error } = await supabase
@@ -138,6 +179,7 @@ export default function TicketDetailWrapper({
       teams={teams}
       agents={agents}
       currentUserId={currentUserId}
+      customerDetails={customerDetails}
       onStatusChange={handleStatusChange}
       onPriorityChange={handlePriorityChange}
       onTeamChange={handleTeamChange}

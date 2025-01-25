@@ -7,7 +7,7 @@ export async function GET(
 ) {
   const id = (await params).id
   try {
-    const { data: user, error } = await adminAuthClient.getUserById(id)
+    const { data: { user }, error } = await adminAuthClient.getUserById(id)
     
     if (error) {
       console.error('Error fetching user:', error)
