@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,6 +31,19 @@ interface RuleFormProps {
   onCancel: () => void
 }
 
+interface AgentWithName {
+  id: string;
+  team_id: string;
+  email: string;
+  displayName?: string;
+}
+
+interface AgentWithEmail {
+  id: string;
+  team_id: string;
+  email?: string;
+}
+
 export function RuleForm({ rule, teams, agents, onSave, onCancel }: RuleFormProps) {
   const [name, setName] = useState(rule?.name || '')
   const [description, setDescription] = useState(rule?.description || '')
@@ -38,6 +51,28 @@ export function RuleForm({ rule, teams, agents, onSave, onCancel }: RuleFormProp
   const [conditions, setConditions] = useState<RuleCondition[]>(rule?.conditions || [])
   const [action, setAction] = useState<RuleActionType>(rule?.action || 'assign_team')
   const [actionTarget, setActionTarget] = useState(rule?.action_target || '')
+  const [agentsWithEmail, setAgentsWithEmail] = useState<AgentWithEmail[]>(agents)
+
+  useEffect(() => {
+    const fetchAgentEmails = async () => {
+      const updatedAgents = await Promise.all(
+        agents.map(async (agent) => {
+          try {
+            const response = await fetch(`/api/customers/${agent.id}`)
+            if (!response.ok) throw new Error('Failed to fetch')
+            const data = await response.json()
+            return { ...agent, email: data.email }
+          } catch (error) {
+            console.error('Error fetching agent email:', error)
+            return { ...agent }
+          }
+        })
+      )
+      setAgentsWithEmail(updatedAgents)
+    }
+
+    fetchAgentEmails()
+  }, [agents])
 
   const handleAddCondition = () => {
     setConditions([
@@ -225,9 +260,9 @@ export function RuleForm({ rule, teams, agents, onSave, onCancel }: RuleFormProp
                       </SelectItem>
                     ))
                   ) : (
-                    agents.map(agent => (
+                    agentsWithEmail.map(agent => (
                       <SelectItem key={agent.id} value={agent.id}>
-                        {agent.id || agent.id}
+                        {agent.email || 'Loading...'}
                       </SelectItem>
                     ))
                   )}
