@@ -75,10 +75,16 @@ export async function GET(request: Request) {
       : 0
 
     // Calculate customer satisfaction
-    const ratedTickets = tickets?.filter(t => t.satisfaction_rating) || []
+    console.log('Calculating satisfaction from tickets:', tickets?.map(t => ({
+      id: t.id,
+      satisfaction_score: t.satisfaction_score
+    })))
+    const ratedTickets = tickets?.filter(t => t.satisfaction_score) || []
+    console.log('Found rated tickets:', ratedTickets.length)
     const customerSatisfaction = ratedTickets.length
-      ? (ratedTickets.reduce((sum, t) => sum + (t.satisfaction_rating || 0), 0) / ratedTickets.length) * 20 // Convert 1-5 to percentage
+      ? (ratedTickets.reduce((sum, t) => sum + (t.satisfaction_score || 0), 0) / ratedTickets.length) * 20 // Convert 1-5 to percentage
       : 0
+    console.log('Calculated satisfaction:', customerSatisfaction)
 
     // Calculate active teams and agents
     const activeTeams = teams?.length || 0
