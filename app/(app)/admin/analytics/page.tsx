@@ -29,9 +29,9 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly'>('daily')
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
+        <h1 className="text-2xl font-semibold">Analytics Dashboard</h1>
         <Select value={period} onValueChange={(value: 'daily' | 'weekly' | 'monthly' | 'quarterly') => setPeriod(value)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select period" />

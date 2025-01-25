@@ -154,25 +154,25 @@ export default function MacrosPage() {
   )
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">Response Macros</h1>
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Macro
-        </Button>
-      </div>
-
-      <div className="space-y-6">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search macros..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
+    <div className="py-8 space-y-8">
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-semibold">Response Macros</h1>
+          <div className="flex items-center gap-4">
+            <div className="relative w-64">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search macros..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Macro
+            </Button>
+          </div>
         </div>
 
         {/* Macros List */}
@@ -187,7 +187,7 @@ export default function MacrosPage() {
             </div>
           ) : (
             filteredMacros.map(macro => (
-              <Card key={macro.id}>
+              <Card key={macro.id} className="bg-card">
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
@@ -197,12 +197,12 @@ export default function MacrosPage() {
                       )}
                       <div className="flex items-center gap-2 pt-1">
                         {macro.category && (
-                          <Badge variant="secondary" className="bg-accent/50">
+                          <Badge variant="secondary" className="text-xs">
                             {macro.category}
                           </Badge>
                         )}
                         {macro.team && (
-                          <Badge variant="outline">
+                          <Badge variant="outline" className="text-xs">
                             {macro.team.name}
                           </Badge>
                         )}

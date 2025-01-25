@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
+import { Card, CardContent } from '@/components/ui/card'
 
 export default function AdminSettingsPage() {
   const [companyName, setCompanyName] = useState('AutoCRM')
@@ -28,75 +29,81 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">General Settings</h1>
+    <div className="py-8 space-y-8">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">General Settings</h1>
         <Button onClick={handleSave} disabled={isSaving}>
           {isSaving ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
 
-      <div className="space-y-8">
+      <div className="max-w-4xl space-y-8">
         {/* Company Information */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Company Information</h2>
-          <div className="space-y-2">
-            <Label htmlFor="companyName">Company Name</Label>
-            <Input
-              id="companyName"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-            />
-          </div>
-        </div>
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <h2 className="text-lg font-semibold">Company Information</h2>
+            <div className="space-y-2">
+              <Label htmlFor="companyName">Company Name</Label>
+              <Input
+                id="companyName"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Notifications */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Notifications</h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Email Notifications</Label>
-                <div className="text-sm text-muted-foreground">
-                  Receive notifications via email
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <h2 className="text-lg font-semibold">Notifications</h2>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Email Notifications</Label>
+                  <div className="text-sm text-muted-foreground">
+                    Receive notifications via email
+                  </div>
                 </div>
+                <Switch
+                  checked={emailNotifications}
+                  onCheckedChange={setEmailNotifications}
+                />
               </div>
-              <Switch
-                checked={emailNotifications}
-                onCheckedChange={setEmailNotifications}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Slack Notifications</Label>
-                <div className="text-sm text-muted-foreground">
-                  Receive notifications via Slack
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Slack Notifications</Label>
+                  <div className="text-sm text-muted-foreground">
+                    Receive notifications via Slack
+                  </div>
                 </div>
+                <Switch
+                  checked={slackNotifications}
+                  onCheckedChange={setSlackNotifications}
+                />
               </div>
-              <Switch
-                checked={slackNotifications}
-                onCheckedChange={setSlackNotifications}
-              />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Ticket Settings */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Ticket Settings</h2>
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Auto Assignment</Label>
-              <div className="text-sm text-muted-foreground">
-                Automatically assign tickets to available agents
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <h2 className="text-lg font-semibold">Ticket Settings</h2>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Auto Assignment</Label>
+                <div className="text-sm text-muted-foreground">
+                  Automatically assign tickets to available agents
+                </div>
               </div>
+              <Switch
+                checked={autoAssignment}
+                onCheckedChange={setAutoAssignment}
+              />
             </div>
-            <Switch
-              checked={autoAssignment}
-              onCheckedChange={setAutoAssignment}
-            />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

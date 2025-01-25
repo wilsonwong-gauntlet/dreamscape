@@ -22,8 +22,6 @@ import {
 const operationalItems = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Inbox', href: '/tickets', icon: TicketIcon },
-  { name: 'Teams', href: '/teams', icon: UserGroupIcon },
-  { name: 'Queue', href: '/queue', icon: QueueListIcon },
 ]
 
 // Knowledge Management
@@ -36,12 +34,8 @@ const adminItems = [
   { name: 'General Settings', href: '/admin/settings', icon: Cog6ToothIcon },
   { name: 'Routing Rules', href: '/admin/routing', icon: QueueListIcon },
   { name: 'Macros', href: '/admin/macros', icon: CommandLineIcon },
-  { name: 'Team Management', href: '/admin/team', icon: UserGroupIcon },
+  { name: 'Teams', href: '/admin/team', icon: UserGroupIcon },
   { name: 'Analytics', href: '/admin/analytics', icon: ChartBarIcon },
-  { name: 'Appearance', href: '/admin/appearance', icon: SwatchIcon },
-  { name: 'Notifications', href: '/admin/notifications', icon: BellIcon },
-  { name: 'Security', href: '/admin/security', icon: LockClosedIcon },
-
 ]
 
 export default function AdminNav() {

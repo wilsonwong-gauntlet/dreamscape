@@ -38,11 +38,11 @@ export default async function RoutingRulesPage() {
     .select('id, name, email, team_id')
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-8">
+    <div className="py-8 space-y-8">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Routing Rules</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-2xl font-semibold">Routing Rules</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Configure automatic ticket routing based on conditions
           </p>
         </div>
@@ -50,7 +50,7 @@ export default async function RoutingRulesPage() {
 
       <div className="space-y-4">
         <div className="bg-muted/50 rounded-lg p-4">
-          <h2 className="font-semibold">How routing works:</h2>
+          <h2 className="text-sm font-medium">How routing works:</h2>
           <ul className="list-disc list-inside space-y-1 mt-2 text-sm text-muted-foreground">
             <li>Rules are evaluated in priority order (lower number = higher priority)</li>
             <li>The first matching rule will be applied</li>

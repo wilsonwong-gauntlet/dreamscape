@@ -141,9 +141,9 @@ export default async function TicketsPage() {
         
         <div className="flex-1 overflow-hidden">
           <TabsContent value="tickets" className="h-full">
-            <div className="container mx-auto py-10">
+            <div className="py-10">
               <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold">Tickets</h1>
+                <h1 className="text-2xl font-semibold">Tickets</h1>
                 <a
                   href="/tickets/new"
                   className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md"

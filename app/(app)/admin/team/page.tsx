@@ -76,25 +76,25 @@ export default function TeamsPage() {
   )
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">Team Management</h1>
-        <Button onClick={handleCreateTeam}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Team
-        </Button>
-      </div>
-
-      <div className="space-y-6">
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search teams..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
+    <div className="py-8 space-y-8">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Teams</h1>
+          <div className="flex items-center gap-4">
+            <div className="relative w-64">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search teams..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <Button onClick={handleCreateTeam}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Team
+            </Button>
+          </div>
         </div>
 
         {/* Teams Table */}
@@ -116,14 +116,14 @@ export default function TeamsPage() {
                   <TableRow key={team.id}>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{team.name}</div>
-                        <div className="text-sm text-muted-foreground">{team.description}</div>
+                        <div className="font-medium text-sm">{team.name}</div>
+                        <div className="text-xs text-muted-foreground">{team.description}</div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {team.focusAreas.map((area, i) => (
-                          <Badge key={i} variant="secondary" className="bg-accent/50">
+                          <Badge key={i} variant="secondary" className="text-xs">
                             {area}
                           </Badge>
                         ))}
@@ -136,15 +136,15 @@ export default function TeamsPage() {
                     <TableCell>{team.timeZone}</TableCell>
                     <TableCell>
                       {team.isBackup ? (
-                        <Badge variant="secondary">Backup</Badge>
+                        <Badge variant="secondary" className="text-xs">Backup</Badge>
                       ) : (
-                        <Badge variant="default">Primary</Badge>
+                        <Badge variant="default" className="text-xs">Primary</Badge>
                       )}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -175,21 +175,21 @@ export default function TeamsPage() {
         </Card>
 
         {/* AI Insights Card */}
-        <Card>
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold mb-4">AI Insights</h3>
+        <Card className="bg-muted/50">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-medium mb-2">AI Insights</h3>
             <div className="space-y-4">
               {teams.some(team => team.aiSuggestions?.staffingSuggestion) ? (
                 teams.map(team => team.aiSuggestions?.staffingSuggestion && (
                   <div key={team.id} className="flex items-start gap-4">
-                    <div className="text-sm">
+                    <div className="text-xs text-muted-foreground">
                       <span className="font-medium">{team.name}:</span>{' '}
                       {team.aiSuggestions.staffingSuggestion}
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-muted-foreground">
+                <div className="text-xs text-muted-foreground">
                   AI insights will appear here as your teams process more tickets.
                 </div>
               )}
