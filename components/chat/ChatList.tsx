@@ -5,8 +5,12 @@ import { createClient } from '@/utils/supabase/client'
 import { ChatSession, ChatMessage, RealtimePayload } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { format } from 'date-fns'
-import { Loader2, MessageCircle, Send } from 'lucide-react'
+import { Loader2, MessageCircle, Send, User, Clock, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
 export function ChatList() {
   const supabase = createClient()
@@ -397,130 +401,99 @@ export function ChatList() {
   }
 
   return (
-    <div className="h-full">
-      <div className="h-full grid grid-cols-3">
-        {/* Chat List Sidebar */}
-        <div className="col-span-1 border-r bg-background flex flex-col min-h-0">
-          <div className="border-b bg-muted/40 p-2 flex-none">
-            <h2 className="font-semibold">Active Chats</h2>
-          </div>
-          
-          <div className="overflow-y-auto">
-            {sessions.length === 0 ? (
-              <p className="p-2 text-muted-foreground">No active chat sessions</p>
-            ) : (
-              <div className="divide-y">
-                {sessions.map((session) => (
-                  <Card
-                    key={session.id}
-                    className={cn(
-                      'p-4 cursor-pointer hover:bg-accent',
-                      selectedSession === session.id && 'bg-accent'
-                    )}
-                    onClick={() => setSelectedSession(session.id)}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="font-medium">{session.user?.email || session.user_id}</div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          convertToTicket(session)
-                        }}
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        Convert to Ticket
-                      </button>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {format(new Date(session.created_at), 'MMM d, h:mm a')}
-                    </div>
-                    {session.chat_messages && session.chat_messages.length > 0 && (
-                      <div className="mt-2 text-sm truncate">
-                        {session.chat_messages[session.chat_messages.length - 1].content}
-                      </div>
-                    )}
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
+    <div className="h-full grid grid-cols-3 divide-x">
+      {/* Chat List */}
+      <div className="flex flex-col">
+        <div className="p-4 border-b">
+          <h2 className="font-semibold text-lg flex items-center gap-2">
+            <MessageCircle className="h-5 w-5" />
+            Active Conversations
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {sessions.length} active {sessions.length === 1 ? 'chat' : 'chats'}
+          </p>
         </div>
-
-        {/* Chat Window */}
-        <div className="col-span-2 bg-background flex flex-col min-h-0">
-          {selectedSession ? (
-            <>
-              <div className="border-b bg-muted/40 p-2 flex-none">
-                <div>
-                  <h3 className="font-semibold">
-                    Chat with Customer {sessions.find(s => s.id === selectedSession)?.user_id.slice(0, 6)}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Started {format(new Date(sessions.find(s => s.id === selectedSession)?.created_at || ''), 'PP p')}
-                  </p>
-                </div>
+        
+        <ScrollArea className="flex-1">
+          {sessions.length === 0 ? (
+            <div className="p-4 text-center text-muted-foreground">
+              <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No active chat sessions</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {sessions.map((session) => (
                 <button
-                  onClick={async () => {
-                    const session = sessions.find(s => s.id === selectedSession)
-                    if (!session) return
-                    
-                    try {
-                      // Create a ticket from the chat
-                      const { data: ticket, error: ticketError } = await supabase
-                        .from('tickets')
-                        .insert([{
-                          customer_id: session.user_id,
-                          title: 'Chat Conversation',
-                          description: 'Converted from chat session',
-                          source: 'chat',
-                          status: 'new',
-                          priority: 'medium',
-                          metadata: {
-                            chat_session_id: session.id
-                          }
-                        }])
-                        .select()
-                        .single()
-
-                      if (ticketError) throw ticketError
-
-                      // Add chat transcript as first response
-                      const transcript = session.chat_messages?.map(m => 
-                        `${m.sender_type}: ${m.content}`
-                      ).join('\n')
-
-                      await supabase
-                        .from('ticket_responses')
-                        .insert([{
-                          ticket_id: ticket.id,
-                          author_id: session.user_id,
-                          content: transcript || '',
-                          type: 'human',
-                          is_internal: true,
-                          metadata: {
-                            source: 'chat_transcript'
-                          }
-                        }])
-
-                      // End chat session
-                      await supabase
-                        .from('chat_sessions')
-                        .update({ status: 'ended' })
-                        .eq('id', session.id)
-
-                      // Redirect to ticket
-                      window.location.href = `/tickets/${ticket.id}`
-                    } catch (error) {
-                      console.error('Error converting to ticket:', error)
-                    }
-                  }}
-                  className="text-sm text-muted-foreground hover:text-foreground"
+                  key={session.id}
+                  onClick={() => setSelectedSession(session.id)}
+                  className={cn(
+                    'w-full text-left p-4 hover:bg-accent/50 transition-colors',
+                    selectedSession === session.id && 'bg-accent'
+                  )}
                 >
-                  Convert to Ticket
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-9 w-9">
+                      <AvatarFallback>
+                        {(session.user?.email || session.user_id).slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium truncate">
+                          {session.user?.email || session.user_id}
+                        </p>
+                        <Badge variant="outline" className="flex-none">
+                          Active
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                        <Clock className="h-3 w-3" />
+                        {format(new Date(session.created_at), 'MMM d, h:mm a')}
+                      </div>
+                      {session.chat_messages && session.chat_messages.length > 0 && (
+                        <p className="text-sm text-muted-foreground truncate mt-2">
+                          {session.chat_messages[session.chat_messages.length - 1].content}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </button>
-              </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </div>
 
-              <div className="overflow-y-auto p-2 space-y-2" ref={messageContainerRef}>
+      {/* Chat Window */}
+      <div className="col-span-2 flex flex-col">
+        {selectedSession ? (
+          <>
+            <div className="p-4 border-b flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-lg">
+                  Chat with {sessions.find(s => s.id === selectedSession)?.user?.email || 'Customer'}
+                </h3>
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5" />
+                  Started {format(new Date(sessions.find(s => s.id === selectedSession)?.created_at || ''), 'PP p')}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const session = sessions.find(s => s.id === selectedSession)
+                  if (session) convertToTicket(session)
+                }}
+                className="gap-2"
+              >
+                <ArrowRight className="h-4 w-4" />
+                Convert to Ticket
+              </Button>
+            </div>
+
+            <ScrollArea className="flex-1 p-4" ref={messageContainerRef}>
+              <div className="overflow-y-auto p-2 space-y-2">
                 {sessions.find(s => s.id === selectedSession)?.chat_messages?.map((message, index) => (
                   <div
                     key={index}
@@ -545,48 +518,53 @@ export function ChatList() {
                   </div>
                 ))}
               </div>
+            </ScrollArea>
 
-              <div className="border-t p-2 flex-none">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault()
-                    if (selectedSession) {
-                      sendResponse(selectedSession)
-                    }
-                  }}
-                  className="flex gap-2"
+            <div className="p-4 border-t">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (selectedSession) {
+                    sendResponse(selectedSession)
+                  }
+                }}
+                className="flex gap-2"
+              >
+                <input
+                  type="text"
+                  value={response}
+                  onChange={(e) => setResponse(e.target.value)}
+                  placeholder="Type your response..."
+                  className="flex-1 rounded-lg border bg-background px-4 py-2 text-sm"
+                  disabled={isSending}
+                />
+                <Button 
+                  type="submit" 
+                  disabled={isSending || !response.trim()}
+                  size="icon"
                 >
-                  <input
-                    type="text"
-                    value={response}
-                    onChange={(e) => setResponse(e.target.value)}
-                    placeholder="Type your response..."
-                    className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm"
-                    disabled={isSending}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isSending || !response.trim()}
-                    className="rounded-lg bg-primary px-3 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    {isSending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </button>
-                </form>
+                  {isSending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
+              </form>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                <MessageCircle className="h-6 w-6" />
               </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              <div className="flex flex-col items-center gap-2">
-                <MessageCircle className="h-8 w-8" />
-                <p>Select a chat to start responding</p>
+              <div className="text-center">
+                <p className="font-medium">No chat selected</p>
+                <p className="text-sm">Select a conversation from the list to start responding</p>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )

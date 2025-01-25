@@ -1,6 +1,9 @@
 import { createClient, adminAuthClient } from '@/utils/supabase/server'
 import TicketTable from '@/components/tickets/TicketList/TicketTable'
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ChatList } from '@/components/chat/ChatList'
 
 export default async function TicketsPage() {
   console.log('Starting ticket page load')
@@ -16,11 +19,22 @@ export default async function TicketsPage() {
   }
   if (!user) {
     console.error('No user found')
-    throw new Error('Not authenticated')
+    redirect('/auth/login')
   }
   console.log('User found:', user.id)
 
   const currentUserId = user?.id
+
+  // Get agent role
+  const { data: agent } = await supabase
+    .from('agents')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (!agent) {
+    redirect('/dashboard')
+  }
 
   console.log('Building ticket query')
   // Fetch tickets based on user's role
@@ -102,23 +116,55 @@ export default async function TicketsPage() {
     .from('agents')
     .select('id, name, email, team_id')
 
+  // Get count of active chat sessions
+  const { count: activeChatCount } = await supabase
+    .from('chat_sessions')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'active')
+
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Tickets</h1>
-        <a
-          href="/tickets/new"
-          className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md"
-        >
-          New Ticket
-        </a>
-      </div>
-      <TicketTable 
-        tickets={ticketsWithDetails} 
-        teams={teams || []}
-        agents={agents || []}
-        currentUserId={currentUserId || ''}
-      />
+    <div className="h-full flex flex-col">
+      <Tabs defaultValue="tickets" className="h-full flex flex-col">
+        <div className="px-6 py-4 border-b bg-background">
+          <TabsList>
+            <TabsTrigger value="tickets">All Tickets</TabsTrigger>
+            <TabsTrigger value="chats" className="relative">
+              Active Chats
+              {activeChatCount ? (
+                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
+                  {activeChatCount}
+                </span>
+              ) : null}
+            </TabsTrigger>
+          </TabsList>
+        </div>
+        
+        <div className="flex-1 overflow-hidden">
+          <TabsContent value="tickets" className="h-full">
+            <div className="container mx-auto py-10">
+              <div className="flex justify-between items-center mb-8">
+                <h1 className="text-3xl font-bold">Tickets</h1>
+                <a
+                  href="/tickets/new"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md"
+                >
+                  New Ticket
+                </a>
+              </div>
+              <TicketTable 
+                tickets={ticketsWithDetails} 
+                teams={teams || []}
+                agents={agents || []}
+                currentUserId={currentUserId || ''}
+              />
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="chats" className="h-full">
+            <ChatList />
+          </TabsContent>
+        </div>
+      </Tabs>
     </div>
   )
 } 
