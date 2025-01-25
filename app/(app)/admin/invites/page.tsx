@@ -2,6 +2,36 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { InviteList } from './InviteList'
 
+// Define the types to match InviteList's expectations
+interface Team {
+  id: string
+  name: string
+}
+
+interface Invite {
+  id: string
+  email: string
+  role: 'agent' | 'admin'
+  team_id: string
+  teams: Team[]
+  created_at: string
+  expires_at: string
+  used_at: string | null
+  token: string
+}
+
+interface RawInvite {
+  id: string
+  email: string
+  role: 'agent' | 'admin'
+  team_id: string
+  teams: Team | null
+  created_at: string
+  expires_at: string
+  used_at: string | null
+  token: string
+}
+
 export default async function InvitesPage() {
   const supabase = await createClient()
   
@@ -27,7 +57,7 @@ export default async function InvitesPage() {
     .select('id, name')
 
   // Get existing invites
-  const { data: invites } = await supabase
+  const { data: rawInvites } = await supabase
     .from('invites')
     .select(`
       id,
@@ -35,7 +65,7 @@ export default async function InvitesPage() {
       role,
       team_id,
       token,
-      teams (
+      teams:team_id (
         id,
         name
       ),
@@ -44,6 +74,12 @@ export default async function InvitesPage() {
       used_at
     `)
     .order('created_at', { ascending: false })
+
+  // Transform the data to match the expected format
+  const invites = (rawInvites as RawInvite[] | null)?.map(invite => ({
+    ...invite,
+    teams: invite.teams ? [invite.teams] : []
+  })) as Invite[] | undefined
 
   return (
     <div className="container mx-auto py-6">

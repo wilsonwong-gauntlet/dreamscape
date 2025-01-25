@@ -16,6 +16,7 @@ import {
   LockClosedIcon,
   SwatchIcon,
   CommandLineIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline'
 
 // Operational items
@@ -35,6 +36,7 @@ const adminItems = [
   { name: 'Routing Rules', href: '/admin/routing', icon: QueueListIcon },
   { name: 'Macros', href: '/admin/macros', icon: CommandLineIcon },
   { name: 'Teams', href: '/admin/team', icon: UserGroupIcon },
+  { name: 'Team Invites', href: '/admin/invites', icon: EnvelopeIcon },
   { name: 'Analytics', href: '/admin/analytics', icon: ChartBarIcon },
 ]
 

@@ -248,6 +248,7 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
     setError(null)
 
     try {
+      // Get AI response from edge function
       const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-ticket-response`, {
         method: 'POST',
         headers: {
@@ -266,7 +267,26 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
       }
 
       const { response: aiResponse } = await response.json()
+
+      // Save AI response to database
+      const saveResponse = await fetch(`/api/tickets/${ticketId}/responses`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: aiResponse,
+          type: 'ai',
+          is_internal: isInternal,
+        }),
+      })
+
+      if (!saveResponse.ok) {
+        throw new Error('Failed to save AI response')
+      }
+
       setContent(aiResponse)
+      onResponseAdded()
     } catch (err) {
       console.error('Error generating AI response:', err)
       setError(err instanceof Error ? err.message : 'Failed to generate AI response')
