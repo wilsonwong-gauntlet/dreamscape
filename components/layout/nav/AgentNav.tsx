@@ -14,8 +14,7 @@ import {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'My Tickets', href: '/tickets', icon: TicketIcon },
-  { name: 'Active Chats', href: '/chats', icon: ChatBubbleLeftRightIcon },
+  { name: 'Inbox', href: '/tickets', icon: TicketIcon },
   { name: 'Queue', href: '/queue', icon: QueueListIcon },
   { name: 'Team', href: '/team', icon: UserGroupIcon },
   { name: 'Knowledge Base', href: '/knowledge', icon: BookOpenIcon },

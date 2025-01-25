@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { ChatSession, ChatMessage, RealtimePayload } from '@/lib/types'
 import { Card } from '@/components/ui/card'
-import { format } from 'date-fns'
+import { format, formatDistanceToNow } from 'date-fns'
 import { Loader2, MessageCircle, Send, User, Clock, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -19,6 +19,7 @@ export function ChatList() {
   const [selectedSession, setSelectedSession] = useState<string | null>(null)
   const [response, setResponse] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [customersMap, setCustomersMap] = useState<Record<string, { email?: string; user_metadata?: any; company?: string }>>({})
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const messageContainerRef = useRef<HTMLDivElement>(null)
 
@@ -28,6 +29,33 @@ export function ChatList() {
       messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight
     }
   }, [selectedSession, sessions])
+
+  // Fetch customer details for all sessions
+  useEffect(() => {
+    async function fetchAllCustomerDetails() {
+      const customerIds = Array.from(new Set(sessions.map(s => s.user_id)))
+      const newCustomersMap: Record<string, { email?: string; user_metadata?: any; company?: string }> = {}
+      
+      await Promise.all(
+        customerIds.map(async (id) => {
+          try {
+            const response = await fetch(`/api/customers/${id}`)
+            if (!response.ok) throw new Error('Failed to fetch customer details')
+            const data = await response.json()
+            newCustomersMap[id] = data
+          } catch (error) {
+            console.error(`Error fetching customer details for ${id}:`, error)
+          }
+        })
+      )
+      
+      setCustomersMap(newCustomersMap)
+    }
+
+    if (sessions.length > 0) {
+      fetchAllCustomerDetails()
+    }
+  }, [sessions])
 
   // Single effect to handle all subscriptions
   useEffect(() => {
@@ -404,12 +432,12 @@ export function ChatList() {
     <div className="h-full grid grid-cols-3 divide-x">
       {/* Chat List */}
       <div className="flex flex-col">
-        <div className="p-4 border-b">
+        <div className="p-3 border-b">
           <h2 className="font-semibold text-lg flex items-center gap-2">
             <MessageCircle className="h-5 w-5" />
             Active Conversations
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground">
             {sessions.length} active {sessions.length === 1 ? 'chat' : 'chats'}
           </p>
         </div>
@@ -421,44 +449,62 @@ export function ChatList() {
               <p>No active chat sessions</p>
             </div>
           ) : (
-            <div className="divide-y">
-              {sessions.map((session) => (
-                <button
-                  key={session.id}
-                  onClick={() => setSelectedSession(session.id)}
-                  className={cn(
-                    'w-full text-left p-4 hover:bg-accent/50 transition-colors',
-                    selectedSession === session.id && 'bg-accent'
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <Avatar className="h-9 w-9">
-                      <AvatarFallback>
-                        {(session.user?.email || session.user_id).slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-medium truncate">
-                          {session.user?.email || session.user_id}
-                        </p>
-                        <Badge variant="outline" className="flex-none">
-                          Active
-                        </Badge>
+            <div className="divide-y divide-border/50">
+              {sessions.map((session) => {
+                const lastMessage = session.chat_messages?.[session.chat_messages.length - 1];
+                const unreadCount = session.chat_messages?.filter(
+                  msg => msg.sender_type === 'customer' && !msg.read_at
+                ).length || 0;
+                
+                return (
+                  <button
+                    key={session.id}
+                    onClick={() => setSelectedSession(session.id)}
+                    className={cn(
+                      'w-full text-left px-3 py-2 hover:bg-accent/50 transition-colors relative',
+                      selectedSession === session.id && 'bg-accent'
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8 flex-none">
+                        <AvatarFallback>
+                          {(customersMap[session.user_id]?.email || '').slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="font-medium text-sm truncate">
+                              {customersMap[session.user_id]?.email || 'Loading...'}
+                            </p>
+                            {customersMap[session.user_id]?.company && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                {customersMap[session.user_id].company}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {unreadCount > 0 && (
+                              <Badge variant="secondary" className="bg-primary text-primary-foreground">
+                                {unreadCount}
+                              </Badge>
+                            )}
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {formatDistanceToNow(new Date(session.created_at), { addSuffix: true })}
+                            </span>
+                          </div>
+                        </div>
+                        {lastMessage && (
+                          <p className="text-sm text-muted-foreground truncate mt-0.5 pr-4">
+                            {lastMessage.sender_type === 'customer' ? '' : 'You: '}
+                            {lastMessage.content}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                        <Clock className="h-3 w-3" />
-                        {format(new Date(session.created_at), 'MMM d, h:mm a')}
-                      </div>
-                      {session.chat_messages && session.chat_messages.length > 0 && (
-                        <p className="text-sm text-muted-foreground truncate mt-2">
-                          {session.chat_messages[session.chat_messages.length - 1].content}
-                        </p>
-                      )}
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
         </ScrollArea>
@@ -471,7 +517,12 @@ export function ChatList() {
             <div className="p-4 border-b flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-lg">
-                  Chat with {sessions.find(s => s.id === selectedSession)?.user?.email || 'Customer'}
+                  Chat with {(() => {
+                    const session = sessions.find(s => s.id === selectedSession)
+                    if (!session) return 'Loading...'
+                    const customer = customersMap[session.user_id]
+                    return customer?.email || customer?.user_metadata?.full_name || 'Loading...'
+                  })()}
                 </h3>
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
                   <Clock className="h-3.5 w-3.5" />

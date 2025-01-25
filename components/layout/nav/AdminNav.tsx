@@ -21,8 +21,7 @@ import {
 // Operational items
 const operationalItems = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'All Tickets', href: '/tickets', icon: TicketIcon },
-  { name: 'Active Chats', href: '/chats', icon: ChatBubbleLeftRightIcon },
+  { name: 'Inbox', href: '/tickets', icon: TicketIcon },
   { name: 'Teams', href: '/teams', icon: UserGroupIcon },
   { name: 'Queue', href: '/queue', icon: QueueListIcon },
 ]
