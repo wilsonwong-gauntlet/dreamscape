@@ -28,21 +28,30 @@ export default async function RoutingRulesPage() {
     .order('priority', { ascending: true })
 
   // Fetch teams for assignment
-  const { data: teams } = await supabase
+  const { data: teams, error: teamsError } = await supabase
     .from('teams')
     .select('id, name')
+    .order('name');
 
-  // Fetch agents for assignment
-  const { data: agents } = await supabase
+  console.log('Teams fetch result:', { teams, teamsError });
+
+  // Simple test query
+  const { data: agents, error: agentsError } = await supabase
     .from('agents')
-    .select('id, name, email, team_id')
+    .select('*')
+
+  console.log('Test agents query:', {
+    data: agents,
+    error: agentsError,
+    auth: await supabase.auth.getUser() // Log current user context
+  });
 
   return (
-    <div className="py-8 space-y-8">
-      <div className="flex justify-between items-center">
+    <div className="container mx-auto py-10">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-semibold">Routing Rules</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-3xl font-bold">Routing Rules</h1>
+          <p className="text-muted-foreground mt-1">
             Configure automatic ticket routing based on conditions
           </p>
         </div>
@@ -50,7 +59,7 @@ export default async function RoutingRulesPage() {
 
       <div className="space-y-4">
         <div className="bg-muted/50 rounded-lg p-4">
-          <h2 className="text-sm font-medium">How routing works:</h2>
+          <h2 className="font-semibold">How routing works:</h2>
           <ul className="list-disc list-inside space-y-1 mt-2 text-sm text-muted-foreground">
             <li>Rules are evaluated in priority order (lower number = higher priority)</li>
             <li>The first matching rule will be applied</li>

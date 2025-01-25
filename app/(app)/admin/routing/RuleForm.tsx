@@ -227,7 +227,7 @@ export function RuleForm({ rule, teams, agents, onSave, onCancel }: RuleFormProp
                   ) : (
                     agents.map(agent => (
                       <SelectItem key={agent.id} value={agent.id}>
-                        {agent.name || agent.email}
+                        {agent.id || agent.id}
                       </SelectItem>
                     ))
                   )}
