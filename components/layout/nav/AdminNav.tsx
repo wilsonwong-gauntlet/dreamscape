@@ -28,6 +28,7 @@ const operationalItems = [
 // Knowledge Management
 const knowledgeItems = [
   { name: 'Knowledge Base', href: '/knowledge', icon: BookOpenIcon },
+  { name: 'Manage Categories', href: '/admin/knowledge/categories', icon: QueueListIcon },
 ]
 
 // Admin & Settings

@@ -1,7 +1,7 @@
 import { Metadata, ResolvingMetadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
-import { ArticleForm } from '@/components/knowledge/ArticleForm'
+import { CategoryForm } from '@/components/knowledge/CategoryForm'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -15,60 +15,60 @@ export async function generateMetadata(
   const slug = (await params).slug
   const supabase = await createClient()
   
-  const { data: article } = await supabase
-    .from('kb_articles')
-    .select('title, content')
+  const { data: category } = await supabase
+    .from('kb_categories')
+    .select('name')
     .eq('slug', slug)
     .single()
 
-  if (!article) {
+  if (!category) {
     return {
-      title: 'Article Not Found'
+      title: 'Category Not Found'
     }
   }
 
-  // Optionally access and extend parent metadata
   const previousImages = (await parent).openGraph?.images || []
 
   return {
-    title: `Edit ${article.title}`,
-    description: `Edit knowledge base article: ${article.title}`,
+    title: `Edit ${category.name}`,
+    description: `Edit knowledge base category: ${category.name}`,
     openGraph: {
-      title: `Edit ${article.title}`,
-      description: article.content.substring(0, 160),
+      title: `Edit ${category.name}`,
+      description: `Edit knowledge base category: ${category.name}`,
       images: [...previousImages]
     }
   }
 }
 
-export default async function EditArticlePage({ params }: Props) {
+export default async function EditCategoryPage({ params }: Props) {
   const slug = (await params).slug
   const supabase = await createClient()
 
-  // Fetch article
-  const { data: article } = await supabase
-    .from('kb_articles')
+  // Fetch category
+  const { data: category } = await supabase
+    .from('kb_categories')
     .select('*')
     .eq('slug', slug)
     .single()
 
-  if (!article) {
+  if (!category) {
     notFound()
   }
 
-  // Fetch categories for the form
+  // Fetch all categories for parent selection
   const { data: categories } = await supabase
     .from('kb_categories')
-    .select('id, name, slug')
+    .select('id, name, slug, description, parent_id')
     .order('name')
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-2xl font-bold mb-8">Edit Article</h1>
+      <h1 className="text-2xl font-bold mb-8">Edit Category</h1>
       
-      <ArticleForm 
+      <CategoryForm 
         categories={categories || []}
-        initialData={article}
+        initialData={category}
+        redirectPath="/admin/knowledge/categories"
       />
     </div>
   )
