@@ -12,6 +12,21 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 
+interface Category {
+  name: string
+}
+
+interface Article {
+  id: string
+  title: string
+  slug: string
+  status: 'draft' | 'published'
+  view_count: number
+  helpful_count: number
+  created_at: string
+  kb_categories: Category | null
+}
+
 export const metadata: Metadata = {
   title: 'Manage Articles',
   description: 'Manage knowledge base articles'
@@ -22,7 +37,7 @@ export default async function AdminArticlesPage() {
 
   const { data: articles } = await supabase
     .from('kb_articles')
-    .select(`
+    .select<string, Article>(`
       id,
       title,
       slug,

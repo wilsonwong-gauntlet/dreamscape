@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -16,26 +18,37 @@ import { toast } from 'sonner'
 interface Category {
   id: string
   name: string
-  slug: string
 }
 
-interface ArticleData {
-  id?: string
+interface Article {
+  id: string
   title: string
   content: string
   category_id: string | null
-  status: 'draft' | 'published' | 'archived'
+  status: 'draft' | 'published'
+  slug: string
 }
 
 interface ArticleFormProps {
   categories: Category[]
-  initialData: ArticleData
+  initialData: Partial<Article>
+  redirectPath?: string
 }
 
-export function ArticleForm({ categories, initialData }: ArticleFormProps) {
+export function ArticleForm({ 
+  categories, 
+  initialData,
+  redirectPath = '/admin/knowledge/articles'
+}: ArticleFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState<ArticleData>(initialData)
+  const [formData, setFormData] = useState<Partial<Article>>({
+    title: '',
+    content: '',
+    category_id: null,
+    status: 'draft',
+    ...initialData
+  })
 
   const isEditing = !!initialData.id
 
@@ -67,7 +80,7 @@ export function ArticleForm({ categories, initialData }: ArticleFormProps) {
         isEditing ? 'Article updated successfully' : 'Article created successfully'
       )
       
-      router.push(`/knowledge/${data.slug}`)
+      router.push(redirectPath)
       router.refresh()
     } catch (error) {
       console.error('Error saving article:', error)
@@ -94,17 +107,35 @@ export function ArticleForm({ categories, initialData }: ArticleFormProps) {
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="content">Content</Label>
+          <Textarea
+            id="content"
+            value={formData.content}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, content: e.target.value }))
+            }
+            placeholder="Article content"
+            required
+            className="min-h-[300px]"
+          />
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="category">Category</Label>
           <Select
-            value={formData.category_id || ''}
+            value={formData.category_id || 'none'}
             onValueChange={(value) =>
-              setFormData((prev) => ({ ...prev, category_id: value }))
+              setFormData((prev) => ({ 
+                ...prev, 
+                category_id: value === 'none' ? null : value 
+              }))
             }
           >
             <SelectTrigger>
               <SelectValue placeholder="Select a category" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="none">None</SelectItem>
               {categories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
                   {category.name}
@@ -115,25 +146,14 @@ export function ArticleForm({ categories, initialData }: ArticleFormProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="content">Content</Label>
-          <Textarea
-            id="content"
-            value={formData.content}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, content: e.target.value }))
-            }
-            placeholder="Write your article content here..."
-            className="min-h-[400px]"
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
           <Label htmlFor="status">Status</Label>
           <Select
-            value={formData.status}
-            onValueChange={(value: ArticleData['status']) =>
-              setFormData((prev) => ({ ...prev, status: value }))
+            value={formData.status || 'draft'}
+            onValueChange={(value) =>
+              setFormData((prev) => ({ 
+                ...prev, 
+                status: value as 'draft' | 'published'
+              }))
             }
           >
             <SelectTrigger>
@@ -142,7 +162,6 @@ export function ArticleForm({ categories, initialData }: ArticleFormProps) {
             <SelectContent>
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="published">Published</SelectItem>
-              <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
         </div>

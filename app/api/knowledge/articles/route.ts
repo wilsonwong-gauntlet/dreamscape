@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
+import slugify from 'slugify'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -35,41 +36,39 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  
   try {
+    const supabase = await createClient()
     const json = await request.json()
-    const { title, content, category_id, status = 'draft' } = json
 
-    if (!title || !content) {
-      return NextResponse.json(
-        { error: 'Title and content are required' },
-        { status: 400 }
-      )
-    }
+    // Generate slug from title
+    const slug = slugify(json.title, { lower: true, strict: true })
 
+    // Create article
     const { data, error } = await supabase
       .from('kb_articles')
       .insert([
         {
-          title,
-          content,
-          category_id,
-          status
-        }
+          title: json.title,
+          content: json.content,
+          category_id: json.category_id,
+          status: json.status,
+          slug: slug,
+        },
       ])
       .select()
       .single()
 
     if (error) {
+      console.error('Error creating article:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json(data)
   } catch (error) {
+    console.error('Error creating article:', error)
     return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
 } 
