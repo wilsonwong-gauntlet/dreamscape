@@ -41,6 +41,7 @@ export async function PUT(
         category_id: json.category_id,
         status: json.status,
         slug: slug,
+        metadata: json.metadata || {}
       })
       .eq('id', params.id)
       .select()

@@ -1,7 +1,7 @@
 import { Metadata, ResolvingMetadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
-import { ArticleForm } from '@/components/knowledge/ArticleForm'
+import ArticleForm from '@/components/knowledge/ArticleForm'
 
 type Props = {
   params: Promise<{ slug: string }>

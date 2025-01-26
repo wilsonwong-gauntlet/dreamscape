@@ -24,11 +24,30 @@ interface Category {
   name: string
 }
 
+interface ArticleMetadata {
+  problem_types: string[]      // e.g., ["login_error", "authentication", "2fa"]
+  required_info: string[]      // e.g., ["user_id", "error_message", "browser"]
+  solution_steps: {
+    step: string
+    explanation: string
+  }[]
+  common_issues: {
+    issue: string
+    solution: string
+  }[]
+  example_queries: string[]    // e.g., ["Can't login", "2FA not working"]
+  resolution_time: string      // e.g., "5_min", "requires_developer"
+  applies_to: string[]         // e.g., ["web_app", "mobile_app"]
+}
+
 interface Article {
   id: string
   title: string
   slug: string
   status: 'draft' | 'published'
+  content: string
+  metadata: ArticleMetadata
+  content_vector: number[] | null  // For semantic search
   view_count: number
   helpful_count: number
   created_at: string
@@ -50,6 +69,9 @@ export default async function AdminArticlesPage() {
       title,
       slug,
       status,
+      content,
+      metadata,
+      content_vector,
       view_count,
       helpful_count,
       created_at,
