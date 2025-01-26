@@ -28,7 +28,9 @@ const operationalItems = [
 // Knowledge Management
 const knowledgeItems = [
   { name: 'Knowledge Base', href: '/knowledge', icon: BookOpenIcon },
-  { name: 'Manage Categories', href: '/admin/knowledge/categories', icon: QueueListIcon },
+  { name: 'Articles', href: '/admin/knowledge/articles', icon: ChatBubbleLeftRightIcon },
+  { name: 'Categories', href: '/admin/knowledge/categories', icon: QueueListIcon },
+  { name: 'KB Settings', href: '/admin/knowledge/settings', icon: Cog6ToothIcon },
 ]
 
 // Admin & Settings
