@@ -11,6 +11,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { MoreVertical } from 'lucide-react'
+import DeleteArticleButton from '@/components/knowledge/DeleteArticleButton'
 
 interface Category {
   name: string
@@ -96,11 +104,25 @@ export default async function AdminArticlesPage() {
                 <TableCell>{article.helpful_count}</TableCell>
                 <TableCell>{new Date(article.created_at).toLocaleDateString()}</TableCell>
                 <TableCell className="text-right">
-                  <Button asChild variant="ghost" size="sm">
-                    <Link href={`/admin/knowledge/articles/${article.slug}/edit`}>
-                      Edit
-                    </Link>
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreVertical className="h-4 w-4" />
+                        <span className="sr-only">Open menu</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
+                        <Link href={`/admin/knowledge/articles/${article.slug}/edit`}>
+                          Edit article
+                        </Link>
+                      </DropdownMenuItem>
+                      <DeleteArticleButton 
+                        articleId={article.id}
+                        articleTitle={article.title}
+                      />
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             ))}
