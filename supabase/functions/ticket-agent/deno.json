@@ -1,0 +1,10 @@
+{
+  "tasks": {
+    "serve": "deno run --allow-net --allow-env index.ts"
+  },
+  "imports": {
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2",
+    "openai": "https://deno.land/x/openai@v4.24.0/mod.ts",
+    "@langchain/langgraph/web": "npm:@langchain/langgraph/web"
+  }
+} 

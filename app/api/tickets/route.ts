@@ -60,7 +60,7 @@ export async function POST(req: Request) {
 
     // Process ticket with Edge Function
     const { data: processResult, error: processError } = await supabase.functions.invoke(
-      'process-ticket',
+      'ticket-agent',
       {
         body: { ticketId: ticket.id }
       }
@@ -72,6 +72,7 @@ export async function POST(req: Request) {
       return NextResponse.json(ticket)
     }
 
+    // Return the ticket with processing results
     return NextResponse.json({
       ...ticket,
       processing_result: processResult
