@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 export default function NewTicketPage() {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -136,16 +136,17 @@ export default function NewTicketPage() {
           <Label htmlFor="priority">Priority Level</Label>
           <Select
             value={priority}
-            onValueChange={(value: 'low' | 'medium' | 'high') => setPriority(value)}
+            onValueChange={(value: 'low' | 'medium' | 'high' | 'urgent') => setPriority(value)}
             disabled={isLoading}
           >
             <SelectTrigger id="priority" className="w-full">
               <SelectValue placeholder="Select priority" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="low">Low - Not time sensitive</SelectItem>
-              <SelectItem value="medium">Medium - Needs attention soon</SelectItem>
-              <SelectItem value="high">High - Urgent issue</SelectItem>
+              <SelectItem value="low">Low - General inquiry or minor issue</SelectItem>
+              <SelectItem value="medium">Medium - Standard support request</SelectItem>
+              <SelectItem value="high">High - Significant impact on business</SelectItem>
+              <SelectItem value="urgent">Urgent - Critical system/business blocker</SelectItem>
             </SelectContent>
           </Select>
         </div>

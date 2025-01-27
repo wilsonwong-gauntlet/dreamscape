@@ -1,6 +1,17 @@
+// @ts-ignore: Deno deploy imports
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+// @ts-ignore: Deno deploy imports
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+// @ts-ignore: Deno deploy imports
 import { OpenAI } from "https://deno.land/x/openai@v4.24.0/mod.ts"
+
+// Add Deno types
+declare const Deno: {
+  serve: (handler: (req: Request) => Promise<Response>) => void;
+  env: {
+    get: (key: string) => string | undefined;
+  };
+};
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -81,11 +92,11 @@ async function analyzeTicket(state: TicketState, openai: OpenAI) {
       canAutoResolve: content.can_resolve_automatically || false,
       confidence: content.confidence_level || 0,
       routingAnalysis: {
-        priority: content.routing_analysis?.priority_level || 'medium',
-        category: content.routing_analysis?.category || 'general',
-        tags: content.routing_analysis?.tags || [],
-        complexity: content.routing_analysis?.complexity || 'medium',
-        expertise: content.routing_analysis?.expertise_areas || []
+        priority: content.detailed_routing_analysis?.priority_level || 'medium',
+        category: content.detailed_routing_analysis?.category_of_the_issue || 'general',
+        tags: content.detailed_routing_analysis?.relevant_tags || [],
+        complexity: content.detailed_routing_analysis?.complexity_level || 'medium',
+        expertise: content.detailed_routing_analysis?.required_expertise_areas || []
       }
     }
   }
@@ -117,18 +128,99 @@ async function generateResponse(state: TicketState, openai: OpenAI) {
 
 // Node: Route Ticket
 async function routeTicket(state: TicketState, supabase: any) {
-  console.log('Routing ticket...')
-  const { data: rules } = await supabase.rpc('evaluate_routing_rules', {
-    ticket_data: {
-      priority: state.analysis.routingAnalysis.priority,
-      category: state.analysis.routingAnalysis.category,
-      tags: state.analysis.routingAnalysis.tags,
-      complexity: state.analysis.routingAnalysis.complexity,
-      expertise_needed: state.analysis.routingAnalysis.expertise
-    }
+  console.log('Routing ticket...', { ticketId: state.ticketId })
+  
+  // Prepare ticket data in the format expected by evaluate_routing_rules
+  const ticketData = {
+    priority: state.analysis.routingAnalysis.priority,
+    category: state.analysis.routingAnalysis.category,
+    tags: state.analysis.routingAnalysis.tags || [],
+    complexity: state.analysis.routingAnalysis.complexity,
+    expertise_needed: state.analysis.routingAnalysis.expertise || [],
+    // Include additional fields that might be used in routing rules
+    source: state.ticket.source,
+    customer_id: state.ticket.customer_id,
+    title: state.ticket.title,
+    description: state.ticket.description,
+    metadata: state.ticket.metadata || {},
+    custom_fields: state.ticket.custom_fields || {}
+  }
+
+  // Log the AI analysis for comparison
+  console.log('Original AI analysis:', JSON.stringify(state.analysis.routingAnalysis, null, 2))
+  console.log('Ticket data prepared for routing:', JSON.stringify(ticketData, null, 2))
+
+  // Verify routing rules exist before evaluation
+  const { data: existingRules, error: rulesError } = await supabase
+    .from('routing_rules')
+    .select('*')
+      .eq('is_active', true)
+    .order('priority', { ascending: true })
+
+  if (rulesError) {
+    console.error('Error fetching routing rules:', rulesError)
+    return state
+  }
+
+  console.log('Active routing rules found:', existingRules?.length || 0)
+  
+  // Evaluate routing rules
+  console.log('Calling evaluate_routing_rules with ticket data...')
+  const { data: rules, error } = await supabase.rpc('evaluate_routing_rules', {
+    ticket_data: ticketData
   })
 
-  console.log('Routing complete:', rules)
+  if (error) {
+    console.error('Error evaluating routing rules:', {
+      error,
+      errorMessage: error.message,
+      errorDetails: error.details,
+      hint: error.hint
+    })
+    return state
+  }
+
+  console.log('Routing rules evaluation complete:', {
+    rulesFound: rules ? rules.length : 0,
+    rules: JSON.stringify(rules, null, 2)
+  })
+
+  // Verify the action target exists
+  if (rules?.[0]) {
+    const rule = rules[0]
+    console.log('Applying rule:', {
+      ruleId: rule.rule_id,
+      action: rule.action,
+      actionTarget: rule.action_target
+    })
+
+    if (rule.action === 'assign_team') {
+      const { data: team } = await supabase
+        .from('teams')
+        .select('id, name')
+        .eq('id', rule.action_target)
+        .single()
+      
+      console.log('Team verification:', {
+        targetTeamId: rule.action_target,
+        teamFound: !!team,
+        teamDetails: team
+      })
+    } else if (rule.action === 'assign_agent') {
+      const { data: agent } = await supabase
+        .from('agents')
+        .select('id, name, team_id')
+        .eq('id', rule.action_target)
+        .single()
+      
+      console.log('Agent verification:', {
+        targetAgentId: rule.action_target,
+        agentFound: !!agent,
+        agentDetails: agent
+      })
+    }
+  }
+
   return {
     ...state,
     routingRules: rules
@@ -141,18 +233,28 @@ async function processTicket(state: TicketState, openai: OpenAI, supabase: any) 
   
   // Step 1: Analyze ticket
   state = await analyzeTicket(state, openai)
-  
-  // Step 2: Determine next action based on analysis
+  console.log('Analysis result:', state.analysis)
+
+  // Step 2: Determine path based on analysis
   if (state.analysis.canAutoResolve && state.analysis.confidence >= 0.8) {
-    // Generate response and auto-resolve
+    // High confidence auto-resolve
+    console.log('High confidence auto-resolve path')
     state = await generateResponse(state, openai)
-  } else if (state.analysis.confidence >= 0.5) {
-    // Generate response but also route to human
-    state = await generateResponse(state, openai)
-    state = await routeTicket(state, supabase)
+    
+    // Set AI team
+    state.suggestedTeamId = 'c4b5b62b-df0c-44f7-9fa8-6aad40e7dfcb' // AI team ID
   } else {
-    // Route directly to human
+    // Medium or low confidence - evaluate routing rules
+    console.log('Evaluating routing rules')
+    
+    // Route ticket first
     state = await routeTicket(state, supabase)
+    
+    // For medium confidence, generate AI response after routing
+    if (state.analysis.confidence >= 0.5) {
+      console.log('Medium confidence - generating response')
+      state = await generateResponse(state, openai)
+    }
   }
   
   return state
@@ -241,8 +343,11 @@ Deno.serve(async (req: Request) => {
     // Process ticket through workflow
     const result = await processTicket(initialState, openai, supabaseClient)
 
-    // Save results
-    if (result.aiResponse) {
+    // Save results based on confidence level
+    if (result.analysis.canAutoResolve && result.analysis.confidence >= 0.8) {
+      // High confidence - Auto resolve
+      console.log('Saving auto-resolve results')
+      
       // Save AI response
       await supabaseClient
         .from('ticket_responses')
@@ -253,35 +358,79 @@ Deno.serve(async (req: Request) => {
           metadata: { confidence: result.analysis.confidence }
         })
 
-      // Update ticket status based on analysis
-      if (result.analysis.canAutoResolve && result.analysis.confidence >= 0.8) {
-        await supabaseClient
-          .from('tickets')
-          .update({ 
-            status: 'resolved',
-            team_id: result.suggestedTeamId 
-          })
-          .eq('id', ticketId)
-      } else {
-        // If we generated a response but can't auto-resolve, set to pending
-        await supabaseClient
-          .from('tickets')
-          .update({ 
-            status: 'pending'
-          })
-          .eq('id', ticketId)
-      }
-    }
-
-    if (result.routingRules?.length > 0) {
-      const rule = result.routingRules[0]
+      // Update ticket status and assign to AI team
       await supabaseClient
         .from('tickets')
         .update({ 
-          team_id: rule.action_target,
-          status: 'open'  // Set to open when routed to a team
+          status: 'resolved',
+          team_id: result.suggestedTeamId
         })
         .eq('id', ticketId)
+
+      // Add to ticket history
+      await supabaseClient
+        .from('ticket_history')
+        .insert({
+          ticket_id: ticketId,
+          action: 'auto_resolve',
+          actor_id: null,
+          changes: {
+            status: 'resolved',
+            team_id: result.suggestedTeamId,
+            confidence: result.analysis.confidence
+          }
+        })
+
+    } else {
+      // Medium or low confidence
+      const updates: Record<string, any> = {}
+      
+      // Save AI response for medium confidence
+      if (result.analysis.confidence >= 0.5 && result.aiResponse) {
+        console.log('Saving AI response for human review')
+        await supabaseClient
+          .from('ticket_responses')
+          .insert({
+            ticket_id: ticketId,
+            content: result.aiResponse,
+            type: 'ai',
+            metadata: { confidence: result.analysis.confidence }
+          })
+        
+        updates.status = 'pending' // Needs human review
+      } else {
+        updates.status = 'open' // Needs full human attention
+      }
+
+      // Apply routing result if available
+      if (result.routingRules?.[0]) {
+        const rule = result.routingRules[0]
+        if (rule.action === 'assign_team') {
+          updates.team_id = rule.action_target
+        } else if (rule.action === 'assign_agent') {
+          updates.assigned_agent_id = rule.action_target
+        }
+      }
+
+      // Update ticket
+      await supabaseClient
+        .from('tickets')
+        .update(updates)
+        .eq('id', ticketId)
+
+      // Add to ticket history
+      await supabaseClient
+        .from('ticket_history')
+        .insert({
+          ticket_id: ticketId,
+          action: result.analysis.confidence >= 0.5 ? 'ai_assist' : 'route',
+          actor_id: null,
+          changes: {
+            ...updates,
+            confidence: result.analysis.confidence,
+            rule_id: result.routingRules?.[0]?.rule_id
+          }
+        })
     }
 
     return new Response(
