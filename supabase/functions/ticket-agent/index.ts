@@ -4,6 +4,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 // @ts-ignore: Deno deploy imports
 import { OpenAI } from "https://deno.land/x/openai@v4.24.0/mod.ts"
+// @ts-ignore: Deno deploy imports
+import { Langfuse } from 'npm:langfuse'
 
 // Add Deno types
 declare const Deno: {
@@ -12,6 +14,23 @@ declare const Deno: {
     get: (key: string) => string | undefined;
   };
 };
+
+// Initialize Langfuse
+const langfuse = new Langfuse({
+  publicKey: Deno.env.get('LANGFUSE_PUBLIC_KEY') ?? '',
+  secretKey: Deno.env.get('LANGFUSE_SECRET_KEY') ?? '',
+  baseUrl: Deno.env.get('LANGFUSE_BASE_URL') ?? 'https://cloud.langfuse.com'
+})
+
+// Add error handling
+langfuse.on("error", (error) => {
+  console.error("Langfuse error:", error)
+})
+
+// Enable debug mode in development
+if (Deno.env.get('ENVIRONMENT') === 'development') {
+  langfuse.debug()
+}
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,6 +58,21 @@ interface TicketState {
   routingRules?: any[]
 }
 
+interface TeamRouting {
+  type: 'team'
+  id: string
+  name: string
+}
+
+interface AgentRouting {
+  type: 'agent'
+  id: string
+  name: string
+  teamId: string
+}
+
+type RoutingResult = TeamRouting | AgentRouting | null
+
 // Tool for fetching relevant KB articles
 async function fetchRelevantKBArticles(supabase: any, ticket: any) {
   const { data: articles } = await supabase
@@ -51,8 +85,23 @@ async function fetchRelevantKBArticles(supabase: any, ticket: any) {
 }
 
 // Node: Initial Analysis
-async function analyzeTicket(state: TicketState, openai: OpenAI) {
+async function analyzeTicket(state: TicketState, openai: OpenAI, trace: any) {
   console.log('Analyzing ticket...')
+  
+  const generation = trace.generation({
+    name: 'Analyze Ticket',
+    model: "gpt-4-turbo-preview",
+    modelParameters: {
+      temperature: 0,
+      response_format: { type: "json_object" }
+    },
+    input: {
+      ticket: state.ticket,
+      customerHistory: state.customerHistory,
+      kbArticles: state.kbArticles
+    }
+  })
+
   const analysis = await openai.chat.completions.create({
     model: "gpt-4-turbo-preview",
     messages: [
@@ -86,6 +135,15 @@ async function analyzeTicket(state: TicketState, openai: OpenAI) {
   const content = JSON.parse(analysis.choices[0].message.content!)
   console.log('Analysis complete:', content)
   
+  generation.end({
+    output: content,
+    usage: {
+      prompt_tokens: analysis.usage?.prompt_tokens,
+      completion_tokens: analysis.usage?.completion_tokens,
+      total_tokens: analysis.usage?.total_tokens
+    }
+  })
+  
   return {
     ...state,
     analysis: {
@@ -103,8 +161,22 @@ async function analyzeTicket(state: TicketState, openai: OpenAI) {
 }
 
 // Node: Generate AI Response
-async function generateResponse(state: TicketState, openai: OpenAI) {
+async function generateResponse(state: TicketState, openai: OpenAI, trace: any) {
   console.log('Generating response...')
+  
+  const generation = trace.generation({
+    name: 'Generate Response',
+    model: "gpt-4-turbo-preview",
+    modelParameters: {
+      temperature: 0
+    },
+    input: {
+      ticket: state.ticket,
+      analysis: state.analysis,
+      kbArticles: state.kbArticles
+    }
+  })
+
   const response = await openai.chat.completions.create({
     model: "gpt-4-turbo-preview",
     messages: [
@@ -119,16 +191,34 @@ async function generateResponse(state: TicketState, openai: OpenAI) {
     ]
   })
 
-  console.log('Response generated')
+  const content = response.choices[0].message.content!
+  
+  generation.end({
+    output: content,
+    usage: {
+      prompt_tokens: response.usage?.prompt_tokens,
+      completion_tokens: response.usage?.completion_tokens,
+      total_tokens: response.usage?.total_tokens
+    }
+  })
+
   return {
     ...state,
-    aiResponse: response.choices[0].message.content
+    aiResponse: content
   }
 }
 
 // Node: Route Ticket
-async function routeTicket(state: TicketState, supabase: any) {
+async function routeTicket(state: TicketState, supabase: any, trace: any) {
   console.log('Routing ticket...', { ticketId: state.ticketId })
+  
+  const span = trace.span({
+    name: 'Route Ticket',
+    input: {
+      ticketId: state.ticketId,
+      analysis: state.analysis.routingAnalysis
+    }
+  })
   
   // Prepare ticket data in the format expected by evaluate_routing_rules
   const ticketData = {
@@ -150,114 +240,308 @@ async function routeTicket(state: TicketState, supabase: any) {
   console.log('Original AI analysis:', JSON.stringify(state.analysis.routingAnalysis, null, 2))
   console.log('Ticket data prepared for routing:', JSON.stringify(ticketData, null, 2))
 
-  // Verify routing rules exist before evaluation
-  const { data: existingRules, error: rulesError } = await supabase
-    .from('routing_rules')
-    .select('*')
+  try {
+    // Create event for fetching rules
+    span.event({
+      name: 'Fetch Rules',
+      input: { is_active: true }
+    })
+
+    // Verify routing rules exist before evaluation
+    const { data: existingRules, error: rulesError } = await supabase
+      .from('routing_rules')
+      .select('*')
       .eq('is_active', true)
-    .order('priority', { ascending: true })
+      .order('priority', { ascending: true })
 
-  if (rulesError) {
-    console.error('Error fetching routing rules:', rulesError)
-    return state
-  }
-
-  console.log('Active routing rules found:', existingRules?.length || 0)
-  
-  // Evaluate routing rules
-  console.log('Calling evaluate_routing_rules with ticket data...')
-  const { data: rules, error } = await supabase.rpc('evaluate_routing_rules', {
-    ticket_data: ticketData
-  })
-
-  if (error) {
-    console.error('Error evaluating routing rules:', {
-      error,
-      errorMessage: error.message,
-      errorDetails: error.details,
-      hint: error.hint
-    })
-    return state
-  }
-
-  console.log('Routing rules evaluation complete:', {
-    rulesFound: rules ? rules.length : 0,
-    rules: JSON.stringify(rules, null, 2)
-  })
-
-  // Verify the action target exists
-  if (rules?.[0]) {
-    const rule = rules[0]
-    console.log('Applying rule:', {
-      ruleId: rule.rule_id,
-      action: rule.action,
-      actionTarget: rule.action_target
-    })
-
-    if (rule.action === 'assign_team') {
-      const { data: team } = await supabase
-        .from('teams')
-        .select('id, name')
-        .eq('id', rule.action_target)
-        .single()
-      
-      console.log('Team verification:', {
-        targetTeamId: rule.action_target,
-        teamFound: !!team,
-        teamDetails: team
+    if (rulesError) {
+      console.error('Error fetching routing rules:', rulesError)
+      span.event({
+        name: 'Rules Fetch Error',
+        output: { error: rulesError }
       })
-    } else if (rule.action === 'assign_agent') {
-      const { data: agent } = await supabase
-        .from('agents')
-        .select('id, name, team_id')
-        .eq('id', rule.action_target)
-        .single()
-      
-      console.log('Agent verification:', {
-        targetAgentId: rule.action_target,
-        agentFound: !!agent,
-        agentDetails: agent
+      span.end({
+        output: { error: rulesError },
+        level: 'ERROR'
       })
+      return state
     }
-  }
 
-  return {
-    ...state,
-    routingRules: rules
+    span.event({
+      name: 'Rules Fetched',
+      output: { rulesCount: existingRules?.length || 0 }
+    })
+
+    console.log('Active routing rules found:', existingRules?.length || 0)
+    
+    // Create event for rule evaluation
+    span.event({
+      name: 'Evaluate Rules',
+      input: ticketData
+    })
+    
+    // Evaluate routing rules
+    console.log('Calling evaluate_routing_rules with ticket data...')
+    const { data: rules, error } = await supabase.rpc('evaluate_routing_rules', {
+      ticket_data: ticketData
+    })
+
+    if (error) {
+      console.error('Error evaluating routing rules:', {
+        error,
+        errorMessage: error.message,
+        errorDetails: error.details,
+        hint: error.hint
+      })
+      span.event({
+        name: 'Rules Evaluation Error',
+        output: { error }
+      })
+      span.end({
+        output: { error },
+        level: 'ERROR'
+      })
+      return state
+    }
+
+    span.event({
+      name: 'Rules Evaluated',
+      output: {
+        matchedRules: rules?.length || 0,
+        rules
+      }
+    })
+
+    console.log('Routing rules evaluation complete:', {
+      rulesFound: rules ? rules.length : 0,
+      rules: JSON.stringify(rules, null, 2)
+    })
+
+    let routingResult: RoutingResult = null
+    
+    // Create event for target verification
+    span.event({
+      name: 'Verify Target',
+      input: rules?.[0] ? {
+        ruleId: rules[0].rule_id,
+        action: rules[0].action,
+        actionTarget: rules[0].action_target
+      } : null
+    })
+    
+    // Verify the action target exists
+    if (rules?.[0]) {
+      const rule = rules[0]
+      console.log('Applying rule:', {
+        ruleId: rule.rule_id,
+        action: rule.action,
+        actionTarget: rule.action_target
+      })
+
+      if (rule.action === 'assign_team') {
+        const { data: team } = await supabase
+          .from('teams')
+          .select('id, name')
+          .eq('id', rule.action_target)
+          .single()
+        
+        console.log('Team verification:', {
+          targetTeamId: rule.action_target,
+          teamFound: !!team,
+          teamDetails: team
+        })
+        
+        if (team) {
+          routingResult = {
+            type: 'team',
+            id: team.id,
+            name: team.name
+          }
+        }
+      } else if (rule.action === 'assign_agent') {
+        const { data: agent } = await supabase
+          .from('agents')
+          .select('id, name, team_id')
+          .eq('id', rule.action_target)
+          .single()
+        
+        console.log('Agent verification:', {
+          targetAgentId: rule.action_target,
+          agentFound: !!agent,
+          agentDetails: agent
+        })
+        
+        if (agent) {
+          routingResult = {
+            type: 'agent',
+            id: agent.id,
+            name: agent.name,
+            teamId: agent.team_id
+          }
+        }
+      }
+    }
+
+    span.event({
+      name: 'Target Verified',
+      output: { routingResult }
+    })
+
+    span.end({
+      output: {
+        activeRules: existingRules?.length || 0,
+        matchedRules: rules?.length || 0,
+        appliedRule: rules?.[0] || null,
+        routingResult
+      },
+      level: routingResult ? 'INFO' : 'WARNING'
+    })
+
+    return {
+      ...state,
+      routingRules: rules
+    }
+  } catch (error) {
+    span.event({
+      name: 'Routing Error',
+      output: {
+        error: error.message,
+        code: error.code
+      }
+    })
+    span.end({
+      error: {
+        message: error.message,
+        code: error.code
+      },
+      level: 'ERROR'
+    })
+    throw error
   }
 }
 
 // Process ticket through workflow
 async function processTicket(state: TicketState, openai: OpenAI, supabase: any) {
-  console.log('Starting ticket processing workflow...')
-  
-  // Step 1: Analyze ticket
-  state = await analyzeTicket(state, openai)
-  console.log('Analysis result:', state.analysis)
+  // Create a new trace for this ticket processing
+  const trace = langfuse.trace({
+    id: `ticket-${state.ticketId}`,
+    name: 'Ticket Processing',
+    metadata: {
+      ticketId: state.ticketId,
+      title: state.ticket.title,
+      source: state.ticket.source,
+      customerHistory: state.customerHistory?.length || 0,
+      hasKbArticles: state.kbArticles?.length > 0
+    },
+    tags: ['ticket-processing', state.ticket.source || 'unknown']
+  })
 
-  // Step 2: Determine path based on analysis
-  if (state.analysis.canAutoResolve && state.analysis.confidence >= 0.8) {
-    // High confidence auto-resolve
-    console.log('High confidence auto-resolve path')
-    state = await generateResponse(state, openai)
+  try {
+    console.log('Starting ticket processing workflow...')
     
-    // Set AI team
-    state.suggestedTeamId = 'c4b5b62b-df0c-44f7-9fa8-6aad40e7dfcb' // AI team ID
-  } else {
-    // Medium or low confidence - evaluate routing rules
-    console.log('Evaluating routing rules')
-    
-    // Route ticket first
-    state = await routeTicket(state, supabase)
-    
-    // For medium confidence, generate AI response after routing
-    if (state.analysis.confidence >= 0.5) {
-      console.log('Medium confidence - generating response')
-      state = await generateResponse(state, openai)
+    // Step 1: Analyze ticket
+    state = await analyzeTicket(state, openai, trace)
+    console.log('Analysis result:', state.analysis)
+
+    // Add score for analysis quality
+    trace.score({
+      name: 'analysis_confidence',
+      value: state.analysis.confidence,
+      comment: `Analysis confidence for ticket ${state.ticketId}`
+    })
+
+    // Step 2: Determine path based on analysis
+    if (state.analysis.canAutoResolve && state.analysis.confidence >= 0.8) {
+      // High confidence auto-resolve
+      console.log('High confidence auto-resolve path')
+      state = await generateResponse(state, openai, trace)
+      
+      // Set AI team
+      state.suggestedTeamId = 'c4b5b62b-df0c-44f7-9fa8-6aad40e7dfcb' // AI team ID
+
+      // Add score for auto-resolution
+      trace.score({
+        name: 'auto_resolution',
+        value: 1.0,
+        comment: `Successfully auto-resolved ticket ${state.ticketId}`
+      })
+
+      // Update trace metadata
+      trace.update({
+        metadata: {
+          resolution: 'auto_resolved',
+          confidence: state.analysis.confidence,
+          teamId: state.suggestedTeamId
+        }
+      })
+    } else {
+      // Medium or low confidence - evaluate routing rules
+      console.log('Evaluating routing rules')
+      
+      // Route ticket first
+      state = await routeTicket(state, supabase, trace)
+      
+      const hasValidRouting = state.routingRules && state.routingRules.length > 0
+      
+      // Add score for routing success
+      trace.score({
+        name: 'routing_success',
+        value: hasValidRouting ? 1.0 : 0.0,
+        comment: hasValidRouting 
+          ? `Successfully routed ticket ${state.ticketId} using rules` 
+          : `Failed to find matching rules for ticket ${state.ticketId}`
+      })
+      
+      // For medium confidence, generate AI response after routing
+      if (state.analysis.confidence >= 0.5) {
+        console.log('Medium confidence - generating response')
+        state = await generateResponse(state, openai, trace)
+
+        // Add score for AI assistance
+        trace.score({
+          name: 'ai_assistance',
+          value: 0.5,
+          comment: `Generated AI response for human review on ticket ${state.ticketId}`
+        })
+
+        // Update trace metadata
+        trace.update({
+          metadata: {
+            resolution: 'ai_assisted',
+            confidence: state.analysis.confidence,
+            teamId: state.suggestedTeamId,
+            routingRuleId: state.routingRules?.[0]?.rule_id
+          }
+        })
+      } else {
+        // Update trace for human-only resolution
+        trace.update({
+          metadata: {
+            resolution: 'human_only',
+            confidence: state.analysis.confidence,
+            teamId: state.suggestedTeamId,
+            routingRuleId: state.routingRules?.[0]?.rule_id
+          }
+        })
+      }
     }
+    
+    return state
+  } catch (error) {
+    // Update trace with error state
+    trace.update({
+      metadata: {
+        error: error.message,
+        errorCode: error.code,
+        status: 'error'
+      },
+      tags: [...(trace.tags || []), 'error']
+    })
+    throw error
+  } finally {
+    // Ensure all events are flushed in serverless environment
+    await langfuse.shutdownAsync()
   }
-  
-  return state
 }
 
 // Edge function handler
