@@ -2,6 +2,7 @@ import { Metadata, ResolvingMetadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
+import ArticleFeedback from '@/components/knowledge/ArticleFeedback'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -103,14 +104,7 @@ export default async function ArticlePage({ params }: Props) {
             <span className="mr-4">{article.view_count} views</span>
             <span>{article.helpful_count} found helpful</span>
           </div>
-          <div className="flex gap-2">
-            <button className="px-4 py-2 text-sm border rounded-md hover:bg-secondary">
-              This was helpful
-            </button>
-            <button className="px-4 py-2 text-sm border rounded-md hover:bg-secondary">
-              Not helpful
-            </button>
-          </div>
+          <ArticleFeedback articleId={article.id} />
         </div>
       </div>
     </div>

@@ -4,13 +4,14 @@ import slugify from 'slugify'
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const id = (await params).id
   try {
     const supabase = await createClient()
     const json = await request.json()
 
-    console.log('Updating article with ID:', params.id)
+    console.log('Updating article with ID:', id)
     console.log('Update data:', json)
 
     // Generate new slug if title changed
@@ -21,11 +22,11 @@ export async function PUT(
     const { data: existing, error: findError } = await supabase
       .from('kb_articles')
       .select('id')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (findError || !existing) {
-      console.error('Article not found:', params.id)
+      console.error('Article not found:', id)
       return NextResponse.json(
         { error: 'Article not found' },
         { status: 404 }
@@ -43,7 +44,7 @@ export async function PUT(
         slug: slug,
         metadata: json.metadata || {}
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 
@@ -64,15 +65,16 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const id = (await params).id
   try {
     const supabase = await createClient()
 
     const { error } = await supabase
       .from('kb_articles')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
 
     if (error) {
       console.error('Error deleting article:', error)

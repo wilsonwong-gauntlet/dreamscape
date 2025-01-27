@@ -56,36 +56,6 @@ export default async function KnowledgeBaseSettingsPage() {
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Search Settings</CardTitle>
-            <CardDescription>
-              Configure search functionality for your knowledge base
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Enable Search</Label>
-                <p className="text-sm text-muted-foreground">
-                  Allow users to search through knowledge base articles
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Search Analytics</Label>
-                <p className="text-sm text-muted-foreground">
-                  Track search queries to improve content
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   )

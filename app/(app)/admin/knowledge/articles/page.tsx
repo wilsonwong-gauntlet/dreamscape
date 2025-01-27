@@ -35,7 +35,6 @@ interface ArticleMetadata {
     issue: string
     solution: string
   }[]
-  example_queries: string[]    // e.g., ["Can't login", "2FA not working"]
   resolution_time: string      // e.g., "5_min", "requires_developer"
   applies_to: string[]         // e.g., ["web_app", "mobile_app"]
 }
@@ -47,7 +46,7 @@ interface Article {
   status: 'draft' | 'published'
   content: string
   metadata: ArticleMetadata
-  content_vector: number[] | null  // For semantic search
+  content_vector: number[] | null  // For OpenAI embeddings
   view_count: number
   helpful_count: number
   created_at: string

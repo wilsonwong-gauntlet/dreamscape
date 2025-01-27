@@ -50,9 +50,9 @@ export default async function KnowledgeBasePage() {
             className="block p-6 rounded-lg border bg-card text-card-foreground hover:border-primary transition-colors"
           >
             <h2 className="text-xl font-semibold mb-2">{article.title}</h2>
-            {article.kb_categories && (
+            {article.kb_categories && article.kb_categories.length > 0 && (
               <p className="text-sm text-muted-foreground mb-4">
-                in {article.kb_categories.name}
+                in {article.kb_categories.map(category => category.name).join(', ')}
               </p>
             )}
             <div className="flex items-center text-sm text-muted-foreground">

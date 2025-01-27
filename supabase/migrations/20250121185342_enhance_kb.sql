@@ -4,10 +4,8 @@ DROP TABLE IF EXISTS kb_categories CASCADE;
 DROP TYPE IF EXISTS article_status CASCADE;
 DROP FUNCTION IF EXISTS generate_unique_slug CASCADE;
 DROP FUNCTION IF EXISTS set_article_slug CASCADE;
-DROP FUNCTION IF EXISTS match_kb_articles CASCADE;
 
--- Enable vector extension first
-CREATE EXTENSION IF NOT EXISTS vector;
+
 
 -- Create enum for article status
 CREATE TYPE article_status AS ENUM ('draft', 'published', 'archived');
@@ -130,33 +128,4 @@ CREATE POLICY "Authenticated users can manage articles"
 CREATE INDEX idx_kb_articles_category ON kb_articles(category_id);
 CREATE INDEX idx_kb_articles_status ON kb_articles(status);
 CREATE INDEX idx_kb_articles_slug ON kb_articles(slug);
-CREATE INDEX idx_kb_categories_slug ON kb_categories(slug);
-
--- Create vector similarity search function
-CREATE OR REPLACE FUNCTION match_kb_articles(
-    query_embedding vector(1536),
-    similarity_threshold float,
-    match_count int
-)
-RETURNS TABLE (
-    id uuid,
-    title text,
-    content text,
-    similarity float
-)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    RETURN QUERY
-    SELECT
-        kb_articles.id,
-        kb_articles.title,
-        kb_articles.content,
-        1 - (kb_articles.content_vector <=> query_embedding) as similarity
-    FROM kb_articles
-    WHERE 1 - (kb_articles.content_vector <=> query_embedding) > similarity_threshold
-        AND status = 'published'
-    ORDER BY similarity DESC
-    LIMIT match_count;
-END;
-$$; 
+CREATE INDEX idx_kb_categories_slug ON kb_categories(slug); 
