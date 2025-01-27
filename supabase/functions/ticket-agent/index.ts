@@ -243,6 +243,7 @@ Deno.serve(async (req: Request) => {
 
     // Save results
     if (result.aiResponse) {
+      // Save AI response
       await supabaseClient
         .from('ticket_responses')
         .insert({
@@ -252,12 +253,21 @@ Deno.serve(async (req: Request) => {
           metadata: { confidence: result.analysis.confidence }
         })
 
-      if (result.analysis.canAutoResolve) {
+      // Update ticket status based on analysis
+      if (result.analysis.canAutoResolve && result.analysis.confidence >= 0.8) {
         await supabaseClient
           .from('tickets')
           .update({ 
             status: 'resolved',
             team_id: result.suggestedTeamId 
+          })
+          .eq('id', ticketId)
+      } else {
+        // If we generated a response but can't auto-resolve, set to pending
+        await supabaseClient
+          .from('tickets')
+          .update({ 
+            status: 'pending'
           })
           .eq('id', ticketId)
       }
@@ -269,7 +279,7 @@ Deno.serve(async (req: Request) => {
         .from('tickets')
         .update({ 
           team_id: rule.action_target,
-          status: 'open'
+          status: 'open'  // Set to open when routed to a team
         })
         .eq('id', ticketId)
     }
