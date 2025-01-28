@@ -6,13 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Separator } from '@/components/ui/separator'
 
 export default function AdminSettingsPage() {
-  const [companyName, setCompanyName] = useState('InvestorSync')
-  const [emailNotifications, setEmailNotifications] = useState(true)
-  const [slackNotifications, setSlackNotifications] = useState(false)
-  const [autoAssignment, setAutoAssignment] = useState(true)
+  const [companyName, setCompanyName] = useState('Dreamscape Capital')
+  const [companyEmail, setCompanyEmail] = useState('admin@dreamscape.capital')
+  const [timezone, setTimezone] = useState('America/New_York')
+  const [dateFormat, setDateFormat] = useState('MM/DD/YYYY')
   const [isSaving, setIsSaving] = useState(false)
 
   const handleSave = async () => {
@@ -29,19 +30,23 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="py-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">General Settings</h1>
-        <Button onClick={handleSave} disabled={isSaving}>
-          {isSaving ? 'Saving...' : 'Save Changes'}
-        </Button>
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-medium">General Settings</h3>
+        <p className="text-sm text-muted-foreground">
+          Configure basic system settings and company information.
+        </p>
       </div>
-
-      <div className="max-w-4xl space-y-8">
-        {/* Company Information */}
+      <Separator />
+      <div className="space-y-6">
         <Card>
-          <CardContent className="p-6 space-y-4">
-            <h2 className="text-lg font-semibold">Company Information</h2>
+          <CardHeader>
+            <CardTitle>Company Information</CardTitle>
+            <CardDescription>
+              Update your company details and contact information
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="companyName">Company Name</Label>
               <Input
@@ -50,60 +55,85 @@ export default function AdminSettingsPage() {
                 onChange={(e) => setCompanyName(e.target.value)}
               />
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Notifications */}
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <h2 className="text-lg font-semibold">Notifications</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Email Notifications</Label>
-                  <div className="text-sm text-muted-foreground">
-                    Receive notifications via email
-                  </div>
-                </div>
-                <Switch
-                  checked={emailNotifications}
-                  onCheckedChange={setEmailNotifications}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Slack Notifications</Label>
-                  <div className="text-sm text-muted-foreground">
-                    Receive notifications via Slack
-                  </div>
-                </div>
-                <Switch
-                  checked={slackNotifications}
-                  onCheckedChange={setSlackNotifications}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Ticket Settings */}
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <h2 className="text-lg font-semibold">Ticket Settings</h2>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Auto Assignment</Label>
-                <div className="text-sm text-muted-foreground">
-                  Automatically assign tickets to available agents
-                </div>
-              </div>
-              <Switch
-                checked={autoAssignment}
-                onCheckedChange={setAutoAssignment}
+            <div className="space-y-2">
+              <Label htmlFor="companyEmail">Company Email</Label>
+              <Input
+                id="companyEmail"
+                type="email"
+                value={companyEmail}
+                onChange={(e) => setCompanyEmail(e.target.value)}
               />
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Regional Settings</CardTitle>
+            <CardDescription>
+              Configure timezone and date format preferences
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="timezone">Timezone</Label>
+              <Input
+                id="timezone"
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dateFormat">Date Format</Label>
+              <Input
+                id="dateFormat"
+                value={dateFormat}
+                onChange={(e) => setDateFormat(e.target.value)}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>System Preferences</CardTitle>
+            <CardDescription>
+              Configure system-wide behavior and defaults
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Debug Mode</Label>
+                <div className="text-sm text-muted-foreground">
+                  Enable detailed logging for troubleshooting
+                </div>
+              </div>
+              <Switch
+                checked={false}
+                onCheckedChange={() => {}}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Maintenance Mode</Label>
+                <div className="text-sm text-muted-foreground">
+                  Temporarily disable access for maintenance
+                </div>
+              </div>
+              <Switch
+                checked={false}
+                onCheckedChange={() => {}}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </div>
       </div>
     </div>
   )

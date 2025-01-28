@@ -151,7 +151,7 @@ export default function ArticleForm({
     ...initialData
   })
 
-  const isEditing = !!initialData.id
+  const isEditing = !!initialData?.id
 
   // Helper function to get metadata with defaults
   const getMetadata = () => ({
@@ -204,9 +204,16 @@ export default function ArticleForm({
     setIsLoading(true)
 
     try {
-      const endpoint = initialData
+      const endpoint = initialData?.id
         ? `/api/research/articles/${initialData.id}`
         : '/api/research/articles'
+
+      console.log('Form submission details:', {
+        isEditing,
+        endpoint,
+        initialData,
+        formData
+      })
 
       const response = await fetch(
         endpoint,
@@ -220,10 +227,17 @@ export default function ArticleForm({
       )
 
       if (!response.ok) {
-        throw new Error('Failed to save article')
+        const errorData = await response.json()
+        console.error('API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        })
+        throw new Error(errorData.error || 'Failed to save article')
       }
 
       const data = await response.json()
+      console.log('API Success Response:', data)
       
       toast.success(
         isEditing ? 'Article updated successfully' : 'Article created successfully'
