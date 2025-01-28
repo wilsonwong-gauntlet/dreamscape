@@ -69,6 +69,11 @@ export interface ExtendedTicket {
   customer?: Customer
   team?: Team
   assigned_agent?: Agent
+  last_response?: {
+    author_id: string
+    content: string
+    created_at: string
+  }
 }
 
 export interface SavedView {
@@ -79,6 +84,7 @@ export interface SavedView {
     priority?: string[]
     team_id?: string
     assigned_agent_id?: string
+    lastResponseBy?: 'customer' | 'agent'
   }
   sort?: {
     field: string

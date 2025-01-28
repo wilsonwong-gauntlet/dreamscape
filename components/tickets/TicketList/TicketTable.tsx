@@ -95,9 +95,9 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
         const { filters } = view
         if (filters.status?.length && !filters.status.includes(ticket.status)) return false
         if (filters.priority?.length && !filters.priority.includes(ticket.priority)) return false
-        if (filters.assignedTo !== undefined) {
-          if (filters.assignedTo === null && ticket.assigned_agent !== null) return false
-          if (filters.assignedTo !== null && ticket.assigned_agent?.id !== filters.assignedTo) return false
+        if (filters.assigned_agent_id !== undefined) {
+          if (filters.assigned_agent_id === null && ticket.assigned_agent !== null) return false
+          if (filters.assigned_agent_id !== null && ticket.assigned_agent?.id !== filters.assigned_agent_id) return false
         }
         if (filters.lastResponseBy === 'customer') {
           if (!ticket.last_response) return true
@@ -359,7 +359,7 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
       name: 'My Open Tickets',
       filters: {
         status: ['open', 'pending'],
-        assignedTo: currentUserId
+        assigned_agent_id: currentUserId
       }
     },
     { 
@@ -367,7 +367,7 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
       name: 'Urgent & Unassigned',
       filters: {
         priority: ['urgent'],
-        assignedTo: null
+        assigned_agent_id: null
       }
     },
     {

@@ -44,10 +44,11 @@ interface Article {
 }
 
 export default async function ResearchPage({
-  searchParams
+  searchParams,
 }: {
-  searchParams: { category?: string }
+  searchParams: Promise<{ category?: string }>
 }) {
+  const params = await searchParams
   const supabase = await createClient()
 
   // Fetch categories with article counts
@@ -84,11 +85,11 @@ export default async function ResearchPage({
     .order('created_at', { ascending: false })
 
   // Apply category filter if selected
-  if (searchParams.category) {
+  if (params.category) {
     const { data: category } = await supabase
       .from('kb_categories')
       .select('id')
-      .eq('slug', searchParams.category)
+      .eq('slug', params.category)
       .single()
 
     if (category) {
@@ -105,11 +106,6 @@ export default async function ResearchPage({
           <h1 className="text-2xl font-bold">Research Library</h1>
           <p className="text-muted-foreground mt-1">Market analysis and investment insights</p>
         </div>
-        {/* <Button asChild>
-          <Link href="/research/new">
-            New Research
-          </Link>
-        </Button> */}
       </div>
 
       <div className="grid gap-6 md:grid-cols-4">
@@ -126,7 +122,7 @@ export default async function ResearchPage({
                   href="/research"
                   className={cn(
                     "block px-3 py-2 rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground",
-                    !searchParams.category && "bg-accent text-accent-foreground"
+                    !params.category && "bg-accent text-accent-foreground"
                   )}
                 >
                   All Research
@@ -140,7 +136,7 @@ export default async function ResearchPage({
                     href={`/research?category=${category.slug}`}
                     className={cn(
                       "block px-3 py-2 rounded-md text-sm font-medium hover:bg-accent hover:text-accent-foreground",
-                      searchParams.category === category.slug && "bg-accent text-accent-foreground"
+                      params.category === category.slug && "bg-accent text-accent-foreground"
                     )}
                   >
                     {category.name}

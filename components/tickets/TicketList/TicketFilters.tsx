@@ -22,6 +22,9 @@ interface TicketFiltersProps {
 export interface TicketFilters {
   status: TicketStatus[]
   priority: TicketPriority[]
+  team_id?: string
+  assigned_agent_id?: string | null
+  lastResponseBy?: 'customer' | 'agent'
 }
 
 const statusOptions: TicketStatus[] = ['new', 'open', 'pending', 'resolved', 'closed']
