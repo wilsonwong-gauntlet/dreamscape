@@ -33,15 +33,26 @@ export interface RealtimePayload<T> {
   table: string
 }
 
-export interface SavedView {
+export interface User {
+  id: string
+  email: string
+  name?: string
+}
+
+export interface Customer {
+  id: string
+  user: User
+  company?: string
+}
+
+export interface Agent {
+  id: string
+  user: User
+}
+
+export interface Team {
   id: string
   name: string
-  filters: {
-    status?: string[]
-    priority?: string[]
-    assignedTo?: string | null
-    lastResponseBy?: string
-  }
 }
 
 export interface ExtendedTicket {
@@ -52,27 +63,44 @@ export interface ExtendedTicket {
   priority: 'low' | 'medium' | 'high' | 'urgent'
   created_at: string
   updated_at: string
-  customer?: {
-    id: string
-    company: string | null
-    user: {
-      email: string
-    }
+  customer_id: string
+  team_id?: string
+  assigned_agent_id?: string
+  customer?: Customer
+  team?: Team
+  assigned_agent?: Agent
+}
+
+export interface SavedView {
+  id: string
+  name: string
+  filters: {
+    status?: string[]
+    priority?: string[]
+    team_id?: string
+    assigned_agent_id?: string
   }
-  team?: {
-    id: string
-    name: string
+  sort?: {
+    field: string
+    direction: 'asc' | 'desc'
   }
-  assigned_agent?: {
-    id: string
-    user: {
-      email: string
-    }
-  }
-  last_response?: {
-    author_id: string
+  user_id: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Chat {
+  id: string
+  customer_id: string
+  agent_id?: string
+  status: 'active' | 'closed'
+  created_at: string
+  updated_at: string
+  customer: Customer
+  agent?: Agent
+  last_message?: {
+    content: string
+    sender_id: string
     created_at: string
-    is_internal: boolean
-    type: 'human' | 'ai'
   }
 } 

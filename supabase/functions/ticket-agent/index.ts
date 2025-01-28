@@ -428,7 +428,7 @@ async function routeTicket(state: TicketState, supabase: any, trace: any) {
         appliedRule: rules?.[0] || null,
         routingResult
       },
-      level: routingResult ? 'INFO' : 'WARNING'
+      level: routingResult ? 'DEFAULT' : 'WARNING'
     })
 
     return {
