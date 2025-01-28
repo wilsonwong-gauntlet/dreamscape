@@ -13,6 +13,7 @@ import {
   Cog6ToothIcon,
   CommandLineIcon,
   ArrowsPointingOutIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline'
 import { Separator } from '@/components/ui/separator'
 
@@ -49,6 +50,12 @@ const settingsNavigation = [
     href: '/admin/routing', 
     icon: ArrowsPointingOutIcon,
     description: 'Configure support routing rules'
+  },
+  { 
+    name: 'Invite', 
+    href: '/admin/invites', 
+    icon: EnvelopeIcon,
+    description: 'Invite new team members'
   },
   { 
     name: 'Macros', 
