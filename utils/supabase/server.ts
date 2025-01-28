@@ -11,6 +11,14 @@ export const adminClient = createBrowserClient(supabaseUrl, supabaseServiceRoleK
   auth: {
     autoRefreshToken: false,
     persistSession: false
+  },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    headers: {
+      'x-supabase-admin': 'true'
+    }
   }
 })
 

@@ -87,6 +87,7 @@ interface LocalTicket {
       email: string
       user_metadata: {
         full_name?: string
+        name?: string
       }
     }
   }
@@ -599,14 +600,14 @@ export default function TicketDetail({
               <>
                 <div>
                   <div className="text-sm font-medium text-gray-900">
-                    {customerDetails?.user_metadata?.full_name || 
-                     customerDetails?.user_metadata?.name || 
-                     customerDetails?.email || 
+                    {ticket.customer.user?.user_metadata?.full_name || 
+                     ticket.customer.user?.user_metadata?.name || 
+                     ticket.customer.user?.email || 
                      'Loading...'}
                   </div>
-                  {customerDetails?.email && (customerDetails?.user_metadata?.full_name || customerDetails?.user_metadata?.name) && (
+                  {ticket.customer.user?.email && (
                     <div className="text-sm text-gray-500">
-                      {customerDetails.email}
+                      {ticket.customer.user.email}
                     </div>
                   )}
                 </div>

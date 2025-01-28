@@ -19,6 +19,13 @@ export default async function TicketDetailPage({
     throw new Error('Not authenticated')
   }
 
+  // Get agent role to determine if user is an admin
+  const { data: agent } = await supabase
+    .from('agents')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
   // Fetch ticket details
   const { data: ticket, error: ticketError } = await supabase
     .from('tickets')
@@ -36,6 +43,37 @@ export default async function TicketDetailPage({
     notFound()
   }
 
+  // Fetch customer details using adminAuthClient if user is an agent
+  let customerDetails = null
+  if (ticket?.customer?.id) {
+    console.log('Fetching customer details:', {
+      customerId: ticket.customer.id,
+      isAgent: !!agent,
+      isOwner: user.id === ticket.customer.id,
+      ticketId: id
+    })
+    
+    if (agent || user.id === ticket.customer.id) {
+      const { data: customerResult } = await adminAuthClient.getUserById(ticket.customer.id)
+      console.log('Customer result:', customerResult)
+      
+      if (customerResult?.user) {
+        customerDetails = {
+          id: customerResult.user.id,
+          email: customerResult.user.email,
+          user_metadata: customerResult.user.user_metadata
+        }
+        console.log('Processed customer details:', customerDetails)
+      } else {
+        console.log('No user data in customer result')
+      }
+    } else {
+      console.log('Not authorized to fetch customer details')
+    }
+  } else {
+    console.log('No customer ID found in ticket:', ticket)
+  }
+
   // Fetch responses
   const { data: responses, error: responsesError } = await supabase
     .from('ticket_responses')
@@ -50,22 +88,25 @@ export default async function TicketDetailPage({
 
   // Get user details for response authors
   const authorIds = Array.from(new Set((responses || []).map(r => r.author_id)))
+  console.log('Response author IDs:', authorIds)
+  
   const authorPromises = authorIds.map(id => adminAuthClient.getUserById(id))
   const authorResults = await Promise.all(authorPromises)
-  const authors = authorResults
-    .filter(result => result.data?.user !== null)
-    .map(result => {
-      const user = result.data.user!
-      return {
-        id: user.id,
-        email: user.email,
-        user_metadata: user.user_metadata
-      }
-    })
+  console.log('Author results:', authorResults)
 
   // Map authors to responses
   const responsesWithAuthors = (responses || []).map(response => {
-    const author = authors?.find(a => a.id === response.author_id)
+    const author = authorResults
+      .filter(result => result.data?.user !== null)
+      .map(result => {
+        const user = result.data.user!
+        return {
+          id: user.id,
+          email: user.email,
+          user_metadata: user.user_metadata
+        }
+      })
+      .find(a => a.id === response.author_id)
     return {
       ...response,
       author: author ? {
@@ -233,8 +274,18 @@ export default async function TicketDetailPage({
       } : null
     })),
     history: formattedHistory,
-    tags: ticket.tags || []
+    tags: ticket.tags || [],
+    customer: ticket.customer ? {
+      ...ticket.customer,
+      user: {
+        id: customerDetails?.id,
+        email: customerDetails?.email || 'unknown@example.com',
+        user_metadata: customerDetails?.user_metadata || {}
+      }
+    } : null
   }
+  
+  console.log('Final ticket data customer:', ticketData.customer)
 
   return (
     <>

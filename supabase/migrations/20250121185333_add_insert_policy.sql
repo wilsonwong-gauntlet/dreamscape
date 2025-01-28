@@ -39,6 +39,17 @@ CREATE POLICY "Users can view own customer profile"
     ON customers FOR SELECT
     USING (auth.uid() = id);
 
+-- Allow admins to view all customer data
+CREATE POLICY "Admins can view all customer data"
+    ON customers FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM agents 
+            WHERE agents.id = auth.uid() 
+            AND agents.role = 'admin'
+        )
+    );
+
 -- Create a function to handle new user signups
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$

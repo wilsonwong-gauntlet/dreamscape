@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChatList } from '@/components/chat/ChatList'
-import SupportTable from '@/components/support/SupportList/SupportTable'
+import TicketTable from '@/components/tickets/TicketList/TicketTable'
 
 export const metadata = {
   title: 'Support',
@@ -142,7 +142,7 @@ export default async function SupportPage() {
               New Support Request
             </a>
           </div>
-          <SupportTable 
+          <TicketTable 
             tickets={ticketsWithDetails} 
             teams={teams || []}
             agents={agents || []}
@@ -178,7 +178,7 @@ export default async function SupportPage() {
                     New Request
                   </a>
                 </div>
-                <SupportTable 
+                <TicketTable 
                   tickets={ticketsWithDetails} 
                   teams={teams || []}
                   agents={agents || []}

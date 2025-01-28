@@ -65,18 +65,53 @@ export default async function TicketsPage() {
 
   // Fetch customer details using adminAuthClient
   const customerIds = Array.from(new Set(tickets?.map(t => t.customer?.id) || []))
-  const customerPromises = customerIds.map(id => id ? adminAuthClient.getUserById(id) : null)
+  console.log('All customer IDs to fetch:', customerIds)
+  
+  const customerPromises = customerIds.map(id => {
+    if (!id) {
+      console.log('Skipping null/undefined customer ID')
+      return null
+    }
+    console.log('Creating promise for customer ID:', id)
+    try {
+      return adminAuthClient.getUserById(id).then(result => {
+        console.log('Admin auth result for customer:', id, result)
+        return result
+      }).catch(error => {
+        console.error('Error fetching customer:', id, error)
+        return null
+      })
+    } catch (error) {
+      console.error('Error creating promise for customer:', id, error)
+      return null
+    }
+  })
   const customerResults = await Promise.all(customerPromises.filter(Boolean))
+  console.log('Raw customer results:', customerResults.map(r => ({
+    id: r?.data?.user?.id,
+    email: r?.data?.user?.email,
+    success: !!r?.data?.user,
+    error: r?.error
+  })))
+  
   const customerDetails = customerResults
-    .filter(result => result?.data?.user)
+    .filter(result => {
+      const hasUser = !!result?.data?.user
+      if (!hasUser) {
+        console.log('Filtering out customer result:', result)
+      }
+      return hasUser
+    })
     .map(result => {
       const user = result!.data.user!
+      console.log('Processing customer:', user.id, user.email)
       return {
         id: user.id,
         email: user.email,
         user_metadata: user.user_metadata
       }
     })
+  console.log('Final processed customer details:', customerDetails)
 
   // Fetch assigned agent details using adminAuthClient
   const agentIds = Array.from(new Set(tickets?.map(t => t.assigned_agent?.id).filter(Boolean) || []))
@@ -94,18 +129,34 @@ export default async function TicketsPage() {
     })
 
   // Map customer and agent details to tickets
-  const ticketsWithDetails = tickets?.map(ticket => ({
-    ...ticket,
-    customer: ticket.customer ? {
-      ...ticket.customer,
-      user: customerDetails.find(c => c.id === ticket.customer?.id) || { email: 'unknown@example.com' }
-    } : null,
-    assigned_agent: ticket.assigned_agent ? {
-      ...ticket.assigned_agent,
-      user: agentDetails.find(a => a.id === ticket.assigned_agent?.id) || { email: 'unknown@example.com' }
-    } : null,
-    last_response: ticket.last_response?.[0] || null
-  })) || []
+  const ticketsWithDetails = tickets?.map(ticket => {
+    const customerDetail = customerDetails.find(c => c.id === ticket.customer?.id)
+    console.log('Mapping ticket customer:', {
+      ticketId: ticket.id,
+      customerId: ticket.customer?.id,
+      foundCustomerDetail: customerDetail,
+      isAgent: !!agent,
+      isOwner: user.id === ticket.customer?.id
+    })
+    
+    return {
+      ...ticket,
+      customer: ticket.customer ? {
+        ...ticket.customer,
+        user: customerDetail || 
+          (agent || user.id === ticket.customer.id ? 
+            { email: 'unknown@example.com' } : 
+            { email: '[Hidden]' })
+      } : null,
+      assigned_agent: ticket.assigned_agent ? {
+        ...ticket.assigned_agent,
+        user: agentDetails.find(a => a.id === ticket.assigned_agent?.id) || { email: 'unknown@example.com' }
+      } : null,
+      last_response: ticket.last_response?.[0] || null
+    }
+  }) || []
+
+  console.log('First ticket with details:', ticketsWithDetails[0])
 
   // Fetch teams
   const { data: teams } = await supabase
