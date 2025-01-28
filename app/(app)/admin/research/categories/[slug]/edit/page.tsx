@@ -31,10 +31,10 @@ export async function generateMetadata(
 
   return {
     title: `Edit ${category.name}`,
-    description: `Edit knowledge base category: ${category.name}`,
+    description: `Edit research category: ${category.name}`,
     openGraph: {
       title: `Edit ${category.name}`,
-      description: `Edit knowledge base category: ${category.name}`,
+      description: `Edit research category: ${category.name}`,
       images: [...previousImages]
     }
   }
@@ -63,7 +63,7 @@ export default async function EditCategoryPage({ params }: Props) {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-2xl font-bold mb-8">Edit Category</h1>
+      <h1 className="text-2xl font-bold mb-8">Edit Research Category</h1>
       
       <CategoryForm 
         categories={categories || []}

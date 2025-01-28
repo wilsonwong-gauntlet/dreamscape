@@ -15,10 +15,10 @@ export async function generateMetadata(
 
   return {
     title: 'Create Category',
-    description: 'Create a new knowledge base category',
+    description: 'Create a new research category',
     openGraph: {
       title: 'Create Category',
-      description: 'Create a new knowledge base category',
+      description: 'Create a new research category',
       images: [...previousImages]
     }
   }
@@ -35,7 +35,7 @@ export default async function NewCategoryPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-2xl font-bold mb-8">Create New Category</h1>
+      <h1 className="text-2xl font-bold mb-8">Create Research Category</h1>
       
       <CategoryForm 
         categories={categories || []}

@@ -17,10 +17,10 @@ export async function generateMetadata(
 
   return {
     title: 'Manage Categories',
-    description: 'Manage knowledge base categories',
+    description: 'Manage research categories and topics',
     openGraph: {
       title: 'Manage Categories',
-      description: 'Manage knowledge base categories',
+      description: 'Manage research categories and topics',
       images: [...previousImages]
     }
   }
@@ -44,7 +44,7 @@ export default async function AdminCategoriesPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">Manage Categories</h1>
+        <h1 className="text-2xl font-bold">Research Categories</h1>
         <Button asChild>
           <Link href="/admin/research/categories/new">
             Create Category
