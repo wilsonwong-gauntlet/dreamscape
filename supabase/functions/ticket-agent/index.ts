@@ -75,13 +75,30 @@ type RoutingResult = TeamRouting | AgentRouting | null
 
 // Tool for fetching relevant KB articles
 async function fetchRelevantKBArticles(supabase: any, ticket: any) {
-  const { data: articles } = await supabase
-    .from('kb_articles')
-    .select('*')
-    .textSearch('content', ticket.description)
-    .limit(5)
+  // Generate embedding for ticket description
+  const openai = new OpenAI({
+    apiKey: Deno.env.get('OPENAI_API_KEY')
+  });
   
-  return articles || []
+  const embedding = await openai.embeddings.create({
+    model: "text-embedding-3-small",
+    input: `${ticket.title}\n\n${ticket.description}`
+  });
+  
+  // Search for similar articles using vector similarity
+  const { data: articles, error } = await supabase
+    .rpc('match_articles', {
+      query_embedding: embedding.data[0].embedding,
+      match_count: 5,
+      min_similarity: 0.5
+    });
+  
+  if (error) {
+    console.error('Error fetching KB articles:', error);
+    return [];
+  }
+  
+  return articles || [];
 }
 
 // Node: Initial Analysis

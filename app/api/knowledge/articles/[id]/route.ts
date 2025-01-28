@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 import slugify from 'slugify'
+import { addDocumentToVectorStore } from '@/utils/langchain'
 
 export async function PUT(
   request: Request,
@@ -51,6 +52,25 @@ export async function PUT(
     if (error) {
       console.error('Error updating article:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Update vector store
+    try {
+      await addDocumentToVectorStore({
+        title: json.title,
+        content: json.content,
+        metadata: {
+          id: data.id,
+          slug: slug,
+          category_id: json.category_id,
+          status: json.status,
+          ...json.metadata
+        }
+      })
+    } catch (vectorError) {
+      console.error('Error updating vector store:', vectorError)
+      // Don't fail the request if vector store update fails
+      // but log it for monitoring
     }
 
     return NextResponse.json(data)

@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 import slugify from 'slugify'
+import { addDocumentToVectorStore } from '@/utils/langchain'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
     // Generate slug from title
     const slug = slugify(json.title, { lower: true, strict: true })
 
-    // Create article
+    // Create article first
     const { data, error } = await supabase
       .from('kb_articles')
       .insert([
@@ -64,11 +65,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Add to vector store
+    try {
+      await addDocumentToVectorStore({
+        title: json.title,
+        content: json.content,
+        metadata: {
+          id: data.id,
+          slug: slug,
+          category_id: json.category_id,
+          status: json.status,
+          ...json.metadata
+        }
+      })
+    } catch (vectorError) {
+      console.error('Error adding to vector store:', vectorError)
+      // Don't fail the request if vector store update fails
+      // but log it for monitoring
+    }
+
     return NextResponse.json(data)
   } catch (error) {
-    console.error('Error creating article:', error)
+    console.error('Error in POST /api/knowledge/articles:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal Server Error' },
       { status: 500 }
     )
   }
