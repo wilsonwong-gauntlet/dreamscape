@@ -21,7 +21,14 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify portfolio ownership
+    // Check if user is admin
+    const { data: agent } = await supabase
+      .from('agents')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    // Verify portfolio access
     const { data: portfolio, error: portfolioError } = await supabase
       .from('portfolios')
       .select('id, customer_id')
@@ -35,7 +42,8 @@ export async function POST(request: Request) {
       )
     }
 
-    if (portfolio.customer_id !== user.id) {
+    // Allow access if user is admin or portfolio owner
+    if (portfolio.customer_id !== user.id && (!agent || agent.role !== 'admin')) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 403 }

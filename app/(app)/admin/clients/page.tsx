@@ -137,7 +137,7 @@ export default async function ClientsPage() {
                 <TableCell>{formatDate(customer.created_at)}</TableCell>
                 <TableCell>
                   <Button asChild variant="outline">
-                    <Link href={`/admin/clients/${customer.id}`}>
+                    <Link href={`/admin/clients/${customer.id}/portfolio`}>
                       View Portfolio
                     </Link>
                   </Button>

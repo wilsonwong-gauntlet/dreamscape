@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createClient, adminAuthClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { HoldingsTable } from '@/components/portfolio/HoldingsTable'
 
@@ -33,6 +33,10 @@ export default async function ClientPortfolioPage({
   if (!customer) {
     redirect('/admin/clients')
   }
+
+  // Get customer auth data
+  const { data: authData } = await adminAuthClient.getUserById(params.id)
+  const customerName = authData.user?.user_metadata?.name || authData.user?.email || 'Unknown Client'
 
   // Get portfolio data
   const { data: portfolios } = await supabase
@@ -76,21 +80,17 @@ export default async function ClientPortfolioPage({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="container mx-auto py-10 space-y-8">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Client Portfolio</h1>
-          <p className="text-muted-foreground">Managing portfolio for {customer.name}</p>
+          <p className="text-muted-foreground">Managing portfolio for {customerName}</p>
         </div>
       </div>
       
       <HoldingsTable
         portfolioId={portfolios.id}
         holdings={portfolios.holdings || []}
-        onHoldingUpdated={() => {
-          // This will trigger a server refresh
-          window.location.reload()
-        }}
       />
     </div>
   )

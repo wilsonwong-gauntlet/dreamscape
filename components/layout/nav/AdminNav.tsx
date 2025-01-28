@@ -30,6 +30,12 @@ const mainNavigation = [
     icon: ChartBarIcon,
     description: 'Performance metrics and insights'
   },
+  {
+    name: 'Clients',
+    href: '/admin/clients',
+    icon: UsersIcon,
+    description: 'Manage client portfolios'
+  },
   { 
     name: 'Research', 
     href: '/admin/research', 

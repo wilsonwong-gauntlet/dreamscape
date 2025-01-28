@@ -71,6 +71,18 @@ CREATE POLICY "Users can manage holdings in their portfolios"
         )
     );
 
+-- Allow admins to manage holdings
+CREATE POLICY "Admins can manage holdings"
+    ON holdings
+    FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM agents
+            WHERE agents.id = auth.uid()
+            AND agents.role = 'admin'
+        )
+    );
+
 -- Transactions: users can view transactions in their portfolios
 CREATE POLICY "Users can view their portfolio transactions"
     ON portfolio_transactions
@@ -78,6 +90,18 @@ CREATE POLICY "Users can view their portfolio transactions"
         portfolio_id IN (
             SELECT id FROM portfolios
             WHERE customer_id = auth.uid()
+        )
+    );
+
+-- Allow admins to manage transactions
+CREATE POLICY "Admins can manage transactions"
+    ON portfolio_transactions
+    FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM agents
+            WHERE agents.id = auth.uid()
+            AND agents.role = 'admin'
         )
     );
 
@@ -99,6 +123,16 @@ CREATE POLICY "Agents can view managed client portfolios"
         )
     );
 
+-- Allow admins to create and manage client portfolios
+CREATE POLICY "Admins can manage client portfolios"
+    ON portfolios
+    USING (
+        EXISTS (
+            SELECT 1 FROM agents
+            WHERE agents.id = auth.uid()
+            AND agents.role = 'admin'
+        )
+    );
 -- Customer teams policies
 CREATE POLICY "Admins can manage customer teams"
     ON customer_teams
