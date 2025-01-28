@@ -1,7 +1,7 @@
 // @ts-ignore: Deno deploy imports
-import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 // @ts-ignore: Deno deploy imports
-import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 // @ts-ignore: Deno deploy imports
 import { OpenAI } from "https://deno.land/x/openai@v4.24.0/mod.ts"
 // @ts-ignore: Deno deploy imports
@@ -73,32 +73,49 @@ interface AgentRouting {
 
 type RoutingResult = TeamRouting | AgentRouting | null
 
+// Initialize Supabase client
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+
 // Tool for fetching relevant KB articles
 async function fetchRelevantKBArticles(supabase: any, ticket: any) {
-  // Generate embedding for ticket description
-  const openai = new OpenAI({
-    apiKey: Deno.env.get('OPENAI_API_KEY')
-  });
-  
-  const embedding = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: `${ticket.title}\n\n${ticket.description}`
-  });
-  
-  // Search for similar articles using vector similarity
-  const { data: articles, error } = await supabase
-    .rpc('match_articles', {
-      query_embedding: embedding.data[0].embedding,
-      match_count: 5,
-      min_similarity: 0.5
+  try {
+    // Generate embedding for ticket description
+    const openai = new OpenAI({
+      apiKey: Deno.env.get('OPENAI_API_KEY')
     });
-  
-  if (error) {
+    
+    const embedding = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: `${ticket.title}\n\n${ticket.description}`
+    });
+    
+    // Search for similar articles using vector similarity
+    const { data: articles, error } = await supabaseClient
+      .rpc('match_documents', {
+        query_embedding: embedding.data[0].embedding,
+        match_count: 5,
+        filter: { status: 'published' }
+      });
+    
+    if (error) {
+      console.error('Error fetching KB articles:', error);
+      return [];
+    }
+    
+    // Transform results to match expected format
+    return articles.map(article => ({
+      id: article.id,
+      title: article.metadata.title,
+      content: article.content,
+      metadata: article.metadata,
+      similarity: article.similarity
+    })) || [];
+  } catch (error) {
     console.error('Error fetching KB articles:', error);
     return [];
   }
-  
-  return articles || [];
 }
 
 // Node: Initial Analysis
