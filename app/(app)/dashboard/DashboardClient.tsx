@@ -281,6 +281,9 @@ export function DashboardClient({ agent, customer }: DashboardClientProps) {
             </div>
             <div className="p-6">
               <div className="space-y-4">
+                <Button variant="outline" className="w-full justify-start" onClick={() => window.location.href = '/portfolio'}>
+                  Manage Portfolio
+                </Button>
                 <Button variant="outline" className="w-full justify-start" onClick={() => window.location.href = '/research'}>
                   Research Library
                 </Button>

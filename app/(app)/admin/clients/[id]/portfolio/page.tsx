@@ -1,31 +1,38 @@
 import { createClient } from '@/utils/supabase/server'
-import { PortfolioClient } from './PortfolioClient'
-import { HoldingsTable } from '@/components/portfolio/HoldingsTable'
 import { redirect } from 'next/navigation'
+import { HoldingsTable } from '@/components/portfolio/HoldingsTable'
 
-export const metadata = {
-  title: 'Portfolio Overview',
-  description: 'View your investment portfolio performance and analytics'
-}
-
-export default async function PortfolioPage() {
+export default async function ClientPortfolioPage({
+  params
+}: {
+  params: { id: string }
+}) {
   const supabase = await createClient()
+  
+  // Check if user is authenticated and is admin
   const { data: { user } } = await supabase.auth.getUser()
-  const userId = user!.id  // Safe to use ! because of protected layout
+  if (!user) redirect('/auth/login')
 
-  // Get user role
   const { data: agent } = await supabase
     .from('agents')
     .select('role')
-    .eq('id', userId)
+    .eq('id', user.id)
     .single()
+
+  if (!agent || agent.role !== 'admin') {
+    redirect('/')
+  }
 
   // Get customer data
   const { data: customer } = await supabase
     .from('customers')
     .select()
-    .eq('id', userId)
+    .eq('id', params.id)
     .single()
+
+  if (!customer) {
+    redirect('/admin/clients')
+  }
 
   // Get portfolio data
   const { data: portfolios } = await supabase
@@ -43,7 +50,7 @@ export default async function PortfolioPage() {
         current_price
       )
     `)
-    .eq('customer_id', userId)
+    .eq('customer_id', params.id)
     .order('created_at', { ascending: false })
     .limit(1)
     .single()
@@ -53,7 +60,7 @@ export default async function PortfolioPage() {
     const { data: newPortfolio, error } = await supabase
       .from('portfolios')
       .insert({
-        customer_id: userId,
+        customer_id: params.id,
         name: 'Main Portfolio',
         description: 'Primary investment portfolio'
       })
@@ -65,25 +72,26 @@ export default async function PortfolioPage() {
       return <div>Error creating portfolio</div>
     }
 
-    return redirect('/portfolio')
+    return redirect(`/admin/clients/${params.id}/portfolio`)
   }
 
   return (
     <div className="space-y-8">
-      <PortfolioClient agent={agent} customer={customer} />
-      
-      <div className="rounded-lg border bg-card">
-        <div className="p-6 border-b">
-          <h2 className="text-lg font-semibold">Holdings</h2>
-          <p className="text-sm text-muted-foreground">Manage your portfolio holdings</p>
-        </div>
-        <div className="p-6">
-          <HoldingsTable
-            portfolioId={portfolios.id}
-            holdings={portfolios.holdings || []}
-          />
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Client Portfolio</h1>
+          <p className="text-muted-foreground">Managing portfolio for {customer.name}</p>
         </div>
       </div>
+      
+      <HoldingsTable
+        portfolioId={portfolios.id}
+        holdings={portfolios.holdings || []}
+        onHoldingUpdated={() => {
+          // This will trigger a server refresh
+          window.location.reload()
+        }}
+      />
     </div>
   )
 } 
