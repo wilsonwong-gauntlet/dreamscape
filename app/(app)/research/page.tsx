@@ -105,11 +105,11 @@ export default async function ResearchPage({
           <h1 className="text-2xl font-bold">Research Library</h1>
           <p className="text-muted-foreground mt-1">Market analysis and investment insights</p>
         </div>
-        <Button asChild>
+        {/* <Button asChild>
           <Link href="/research/new">
             New Research
           </Link>
-        </Button>
+        </Button> */}
       </div>
 
       <div className="grid gap-6 md:grid-cols-4">
