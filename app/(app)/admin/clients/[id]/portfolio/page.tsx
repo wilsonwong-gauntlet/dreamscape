@@ -5,8 +5,9 @@ import { HoldingsTable } from '@/components/portfolio/HoldingsTable'
 export default async function ClientPortfolioPage({
   params
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
+  const { id } = await params
   const supabase = await createClient()
   
   // Check if user is authenticated and is admin
@@ -27,7 +28,7 @@ export default async function ClientPortfolioPage({
   const { data: customer } = await supabase
     .from('customers')
     .select()
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (!customer) {
@@ -35,7 +36,7 @@ export default async function ClientPortfolioPage({
   }
 
   // Get customer auth data
-  const { data: authData } = await adminAuthClient.getUserById(params.id)
+  const { data: authData } = await adminAuthClient.getUserById(id)
   const customerName = authData.user?.user_metadata?.name || authData.user?.email || 'Unknown Client'
 
   // Get portfolio data
@@ -54,7 +55,7 @@ export default async function ClientPortfolioPage({
         current_price
       )
     `)
-    .eq('customer_id', params.id)
+    .eq('customer_id', id)
     .order('created_at', { ascending: false })
     .limit(1)
     .single()
@@ -64,7 +65,7 @@ export default async function ClientPortfolioPage({
     const { data: newPortfolio, error } = await supabase
       .from('portfolios')
       .insert({
-        customer_id: params.id,
+        customer_id: id,
         name: 'Main Portfolio',
         description: 'Primary investment portfolio'
       })
@@ -76,7 +77,7 @@ export default async function ClientPortfolioPage({
       return <div>Error creating portfolio</div>
     }
 
-    return redirect(`/admin/clients/${params.id}/portfolio`)
+    return redirect(`/admin/clients/${id}/portfolio`)
   }
 
   return (
