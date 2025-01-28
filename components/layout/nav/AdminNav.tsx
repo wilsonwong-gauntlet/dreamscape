@@ -42,6 +42,12 @@ const mainNavigation = [
     icon: BookOpenIcon,
     description: 'Manage research content'
   },
+  {
+    name: 'Support',
+    href: '/support',
+    icon: UserGroupIcon,
+    description: 'View support dashboard'
+  },
 ]
 
 const settingsNavigation = [
