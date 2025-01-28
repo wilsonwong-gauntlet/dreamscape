@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createClient, adminAuthClient } from '@/utils/supabase/server'
 import { DashboardClient } from './DashboardClient'
 
 export default async function DashboardPage() {
@@ -13,11 +13,24 @@ export default async function DashboardPage() {
     .eq('id', userId)
     .single()
 
+  // Get customer data
   const { data: customer } = await supabase
     .from('customers')
     .select()
     .eq('id', userId)
     .single()
 
-  return <DashboardClient agent={agent} customer={customer} />
+  // Get customer auth data
+  const { data: authData } = await adminAuthClient.getUserById(userId)
+  const customerDetails = authData.user ? {
+    email: authData.user.email,
+    name: authData.user.user_metadata?.name,
+    full_name: authData.user.user_metadata?.full_name
+  } : null
+
+  return <DashboardClient 
+    agent={agent} 
+    customer={customer} 
+    customerDetails={customerDetails}
+  />
 } 

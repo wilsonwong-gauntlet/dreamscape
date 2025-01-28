@@ -1,16 +1,21 @@
+// app/(app)/dashboard/DashboardClient.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { ChatWindow } from '@/components/chat/ChatWindow'
-import { MessageCircle, Loader2 } from 'lucide-react'
-
-interface AnalyticsMetrics {
-  totalAUM: number
-  portfolioReturn: number
-  ytdPerformance: number
-  cashBalance: number
-}
+import { useEffect, useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { formatCurrency } from '@/lib/utils'
+import Link from 'next/link'
+import {
+  BarChart3,
+  ArrowUpRight,
+  ArrowDownRight,
+  Target,
+  Calendar,
+  Activity,
+  PieChart,
+  Clock
+} from 'lucide-react'
 
 interface DashboardClientProps {
   agent: { role: string } | null
@@ -18,306 +23,216 @@ interface DashboardClientProps {
 }
 
 export function DashboardClient({ agent, customer }: DashboardClientProps) {
-  const [isChatOpen, setIsChatOpen] = useState(false)
-  const [metrics, setMetrics] = useState<AnalyticsMetrics | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [metrics, setMetrics] = useState<any>(null)
+  const [customerDetails, setCustomerDetails] = useState<{ email?: string } | null>(null)
 
   useEffect(() => {
     async function fetchMetrics() {
-      try {
-        console.log('Fetching metrics...')
-        const response = await fetch('/api/analytics/portfolio')
-        console.log('Response status:', response.status)
-        if (!response.ok) throw new Error('Failed to fetch metrics')
-        const data = await response.json()
-        console.log('Metrics data:', data)
-        setMetrics(data)
-      } catch (error) {
-        console.error('Error fetching metrics:', error)
-      } finally {
-        setIsLoading(false)
-      }
+      const response = await fetch('/api/analytics/portfolio')
+      const data = await response.json()
+      setMetrics(data)
     }
-
     fetchMetrics()
   }, [])
 
-  let roleSpecificContent
-  if (agent) {
-    if (agent.role === 'admin') {
-      roleSpecificContent = (
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Fund Overview</h1>
-          <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border bg-card p-6">
-              <h2 className="text-sm font-medium text-muted-foreground mb-2">Total AUM</h2>
-              <p className="text-2xl font-bold">
-                {isLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  metrics ? `$${(metrics.totalAUM / 1000000).toFixed(1)}M` : '--'
-                )}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">Across all accounts</p>
-            </div>
-
-            <div className="rounded-lg border bg-card p-6">
-              <h2 className="text-sm font-medium text-muted-foreground mb-2">YTD Performance</h2>
-              <p className="text-2xl font-bold">
-                {isLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  metrics ? `${metrics.ytdPerformance.toFixed(2)}%` : '--'
-                )}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">Year to date</p>
-            </div>
-
-            <div className="rounded-lg border bg-card p-6">
-              <h2 className="text-sm font-medium text-muted-foreground mb-2">Active Clients</h2>
-              <p className="text-2xl font-bold">
-                {isLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  '127'
-                )}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">Last 30 days</p>
-            </div>
-
-            <div className="rounded-lg border bg-card p-6">
-              <h2 className="text-sm font-medium text-muted-foreground mb-2">New Investments</h2>
-              <p className="text-2xl font-bold">
-                {isLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  '$24.5M'
-                )}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">This month</p>
-            </div>
-          </div>
-        </div>
-      )
-    } else {
-      roleSpecificContent = (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-semibold tracking-tight">Client Overview</h1>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => window.location.href = '/clients'}>
-                View All Clients
-              </Button>
-              <Button size="sm" onClick={() => window.location.href = '/calendar'}>
-                Schedule Meeting
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border bg-card p-6">
-              <h2 className="text-sm font-medium text-muted-foreground mb-2">Managed AUM</h2>
-              <p className="text-2xl font-bold">
-                {isLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  metrics ? `$${(metrics.totalAUM / 1000000).toFixed(1)}M` : '--'
-                )}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">Total client assets</p>
-            </div>
-
-            <div className="rounded-lg border bg-card p-6">
-              <h2 className="text-sm font-medium text-muted-foreground mb-2">Active Clients</h2>
-              <p className="text-2xl font-bold">
-                {isLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  '42'
-                )}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">Under management</p>
-            </div>
-
-            <div className="rounded-lg border bg-card p-6">
-              <h2 className="text-sm font-medium text-muted-foreground mb-2">Pending Tasks</h2>
-              <p className="text-2xl font-bold">
-                {isLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  '8'
-                )}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">Requires attention</p>
-            </div>
-
-            <div className="rounded-lg border bg-card p-6">
-              <h2 className="text-sm font-medium text-muted-foreground mb-2">Upcoming Meetings</h2>
-              <p className="text-2xl font-bold">
-                {isLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  '3'
-                )}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">Next 7 days</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 rounded-lg border bg-card">
-              <div className="p-6 border-b">
-                <h2 className="font-semibold">Recent Activity</h2>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  {isLoading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No recent activity</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-lg border bg-card">
-              <div className="p-6 border-b">
-                <h2 className="font-semibold">Quick Actions</h2>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  <Button variant="outline" className="w-full justify-start" onClick={() => window.location.href = '/clients'}>
-                    View Clients
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => window.location.href = '/research'}>
-                    Research Library
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => window.location.href = '/calendar'}>
-                    Schedule Meeting
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => window.location.href = '/tasks'}>
-                    View Tasks
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )
+  useEffect(() => {
+    async function fetchCustomerDetails() {
+      if (customer?.id) {
+        try {
+          const response = await fetch(`/api/customers/${customer.id}`)
+          if (!response.ok) throw new Error('Failed to fetch customer details')
+          const data = await response.json()
+          setCustomerDetails(data)
+        } catch (error) {
+          console.error('Error fetching customer details:', error)
+        }
+      }
     }
-  } else if (customer) {
-    roleSpecificContent = (
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Portfolio Overview</h1>
-        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border bg-card p-6">
-            <h2 className="text-sm font-medium text-muted-foreground mb-2">Portfolio Value</h2>
-            <p className="text-2xl font-bold">
-              {isLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                metrics ? `$${(metrics.totalAUM).toLocaleString()}` : '--'
-              )}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">Total assets</p>
-          </div>
-
-          <div className="rounded-lg border bg-card p-6">
-            <h2 className="text-sm font-medium text-muted-foreground mb-2">Total Return</h2>
-            <p className="text-2xl font-bold">
-              {isLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                metrics ? `${metrics.portfolioReturn.toFixed(2)}%` : '--'
-              )}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">Since inception</p>
-          </div>
-
-          <div className="rounded-lg border bg-card p-6">
-            <h2 className="text-sm font-medium text-muted-foreground mb-2">YTD Performance</h2>
-            <p className="text-2xl font-bold">
-              {isLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                metrics ? `${metrics.ytdPerformance.toFixed(2)}%` : '--'
-              )}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">Year to date</p>
-          </div>
-
-          <div className="rounded-lg border bg-card p-6">
-            <h2 className="text-sm font-medium text-muted-foreground mb-2">Cash Balance</h2>
-            <p className="text-2xl font-bold">
-              {isLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                metrics ? `$${metrics.cashBalance.toLocaleString()}` : '--'
-              )}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">Available funds</p>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 rounded-lg border bg-card">
-            <div className="p-6 border-b">
-              <h2 className="font-semibold">Recent Documents</h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                <Button variant="outline" className="w-full justify-start" onClick={() => window.location.href = '/documents'}>
-                  View All Documents
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border bg-card">
-            <div className="p-6 border-b">
-              <h2 className="font-semibold">Quick Actions</h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                <Button variant="outline" className="w-full justify-start" onClick={() => window.location.href = '/portfolio'}>
-                  Manage Portfolio
-                </Button>
-                <Button variant="outline" className="w-full justify-start" onClick={() => window.location.href = '/research'}>
-                  Research Library
-                </Button>
-                <Button variant="outline" className="w-full justify-start" onClick={() => window.location.href = '/documents'}>
-                  View Documents
-                </Button>
-                <Button variant="outline" className="w-full justify-start" onClick={() => window.location.href = '/support'}>
-                  Get Support
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+    fetchCustomerDetails()
+  }, [customer?.id])
 
   return (
-    <div className="py-6">
-      <div className="grid gap-6">
-        {roleSpecificContent}
+    <div className="py-8 space-y-8">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold">Welcome Back{customerDetails?.email ? `, ${customerDetails.email}` : ''}</h1>
+          <p className="text-muted-foreground mt-1">Your wealth management overview</p>
+        </div>
+        <div className="flex gap-4">
+          <Button asChild>
+            <Link href="/portfolio">
+              <PieChart className="h-4 w-4 mr-2" />
+              View Portfolio
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/support">
+              Schedule Review
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      {customer && (
-        <>
-          <ChatWindow isOpen={isChatOpen} />
-          <Button
-            onClick={() => setIsChatOpen(!isChatOpen)}
-            className="fixed bottom-4 right-4 rounded-full p-3 h-12 w-12"
-          >
-            <MessageCircle className="h-6 w-6" />
-          </Button>
-        </>
-      )}
+      {/* Key Portfolio Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base font-semibold">Total Portfolio Value</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(metrics?.totalAUM || 0)}</div>
+            <div className="flex items-center text-xs text-muted-foreground">
+              <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+              <span className="text-green-500">+2.5%</span>
+              <span className="ml-1">since last month</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base font-semibold">YTD Return</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">+{metrics?.ytdPerformance || 0}%</div>
+            <div className="flex items-center text-xs text-muted-foreground">
+              <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+              <span className="text-green-500">+3.2%</span>
+              <span className="ml-1">vs benchmark</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base font-semibold">Cash Balance</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(metrics?.cashBalance || 0)}</div>
+            <p className="text-xs text-muted-foreground">Available for investment</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Investment Goals & Asset Allocation */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Investment Goals</CardTitle>
+            <CardDescription>Progress towards your financial objectives</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span>Retirement Fund</span>
+                  <span className="font-medium">75% of goal</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full">
+                  <div className="h-2 bg-primary rounded-full" style={{ width: '75%' }} />
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span>Education Fund</span>
+                  <span className="font-medium">60% of goal</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full">
+                  <div className="h-2 bg-primary rounded-full" style={{ width: '60%' }} />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Asset Allocation</CardTitle>
+            <CardDescription>Current portfolio composition</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground">Equities</div>
+                  <div className="text-2xl font-bold">{metrics?.assetAllocation?.equities.toFixed(1) || 0}%</div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground">Fixed Income</div>
+                  <div className="text-2xl font-bold">{metrics?.assetAllocation?.fixedIncome.toFixed(1) || 0}%</div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground">Alternatives</div>
+                  <div className="text-2xl font-bold">{metrics?.assetAllocation?.alternatives.toFixed(1) || 0}%</div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground">Cash</div>
+                  <div className="text-2xl font-bold">{metrics?.assetAllocation?.cash.toFixed(1) || 0}%</div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Activity & Next Review */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Latest transactions and updates</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <div className="mr-4">
+                  <ArrowUpRight className="h-4 w-4 text-green-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Dividend Payment</p>
+                  <p className="text-xs text-muted-foreground">AAPL - $125.50</p>
+                </div>
+                <div className="text-sm text-muted-foreground">2h ago</div>
+              </div>
+              <div className="flex items-center">
+                <div className="mr-4">
+                  <ArrowDownRight className="h-4 w-4 text-red-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Portfolio Rebalancing</p>
+                  <p className="text-xs text-muted-foreground">Automatic Adjustment</p>
+                </div>
+                <div className="text-sm text-muted-foreground">1d ago</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Next Review</CardTitle>
+            <CardDescription>Upcoming meeting with your advisor</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Calendar className="h-8 w-8 text-primary mr-4" />
+                <div>
+                  <p className="font-medium">Quarterly Portfolio Review</p>
+                  <p className="text-sm text-muted-foreground">March 15, 2024 - 2:00 PM</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm">
+                Reschedule
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
-} 
+}
