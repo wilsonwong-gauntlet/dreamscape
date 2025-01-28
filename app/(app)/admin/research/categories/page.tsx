@@ -2,7 +2,7 @@ import { Metadata, ResolvingMetadata } from 'next'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import { Button } from '@/components/ui/button'
-import { CategoryList } from '@/components/knowledge/CategoryList'
+import { CategoryList } from '@/components/research/CategoryList'
 
 type Props = {
   params: Promise<{}>
@@ -46,7 +46,7 @@ export default async function AdminCategoriesPage() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">Manage Categories</h1>
         <Button asChild>
-          <Link href="/admin/knowledge/categories/new">
+          <Link href="/admin/research/categories/new">
             Create Category
           </Link>
         </Button>

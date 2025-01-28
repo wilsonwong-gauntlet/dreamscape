@@ -3,13 +3,13 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 
 export const metadata: Metadata = {
-  title: 'Knowledge Base',
-  description: 'Browse our knowledge base articles and documentation'
+  title: 'Research Library',
+  description: 'Investment research and market analysis'
 }
 
 export const dynamic = 'force-dynamic'
 
-export default async function KnowledgeBasePage() {
+export default async function ResearchPage() {
   const supabase = await createClient()
 
   const { data: articles } = await supabase
@@ -33,12 +33,15 @@ export default async function KnowledgeBasePage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">Knowledge Base</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Research Library</h1>
+          <p className="text-muted-foreground mt-1">Market analysis and investment insights</p>
+        </div>
         <Link 
-          href="/knowledge/new" 
+          href="/research/new" 
           className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md"
         >
-          Create Article
+          New Research
         </Link>
       </div>
 
@@ -46,13 +49,13 @@ export default async function KnowledgeBasePage() {
         {articles?.map((article) => (
           <Link 
             key={article.id} 
-            href={`/knowledge/${article.slug}`}
+            href={`/research/${article.slug}`}
             className="block p-6 rounded-lg border bg-card text-card-foreground hover:border-primary transition-colors"
           >
             <h2 className="text-xl font-semibold mb-2">{article.title}</h2>
             {article.kb_categories && article.kb_categories.length > 0 && (
               <p className="text-sm text-muted-foreground mb-4">
-                in {article.kb_categories.map(category => category.name).join(', ')}
+                Category: {article.kb_categories.map(category => category.name).join(', ')}
               </p>
             )}
             <div className="flex items-center text-sm text-muted-foreground">

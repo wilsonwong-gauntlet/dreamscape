@@ -2,7 +2,7 @@ import { Metadata, ResolvingMetadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
-import ArticleFeedback from '@/components/knowledge/ArticleFeedback'
+import ArticleFeedback from '@/components/research/ArticleFeedback'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -85,7 +85,7 @@ export default async function ArticlePage({ params }: Props) {
       <div className="mb-8">
         {article.kb_categories && (
           <Link 
-            href={`/knowledge/categories/${article.kb_categories.slug}`}
+            href={`/research/categories/${article.kb_categories.slug}`}
             className="text-sm text-muted-foreground hover:text-primary"
           >
             {article.kb_categories.name}

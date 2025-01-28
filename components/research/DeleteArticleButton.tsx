@@ -26,11 +26,13 @@ export default function DeleteArticleButton({ articleId, articleTitle }: DeleteA
   const [isLoading, setIsLoading] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
 
+  const deleteEndpoint = `/api/research/articles/${articleId}`
+
   async function handleDelete() {
     setIsLoading(true)
 
     try {
-      const response = await fetch(`/api/knowledge/articles/${articleId}`, {
+      const response = await fetch(deleteEndpoint, {
         method: 'DELETE',
       })
 

@@ -17,13 +17,17 @@ export default function ArticleFeedback({ articleId }: ArticleFeedbackProps) {
   const [isHelpful, setIsHelpful] = useState<boolean | null>(null)
   const supabase = createClient()
 
+  // Update API endpoints
+  const getFeedbackEndpoint = `/api/research/articles/${articleId}/feedback`
+  const submitFeedbackEndpoint = `/api/research/articles/${articleId}/feedback`
+
   useEffect(() => {
     async function checkFeedback() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return // Don't check feedback for anonymous users
 
       try {
-        const response = await fetch(`/api/knowledge/articles/${articleId}/feedback`)
+        const response = await fetch(getFeedbackEndpoint)
         if (!response.ok) return
         
         const data = await response.json()
@@ -46,7 +50,7 @@ export default function ArticleFeedback({ articleId }: ArticleFeedbackProps) {
 
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/knowledge/articles/${articleId}/feedback`, {
+      const response = await fetch(submitFeedbackEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

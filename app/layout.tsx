@@ -14,8 +14,8 @@ const geist = Geist({
 
 export const metadata = {
   metadataBase: new URL(defaultUrl),
-  title: 'AutoCRM',
-  description: 'Modern Customer Support System',
+  title: 'InvestorSync',
+  description: 'AI CRM for Hedge Funds',
 }
 
 export default function RootLayout({

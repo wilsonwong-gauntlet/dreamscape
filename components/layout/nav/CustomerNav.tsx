@@ -5,26 +5,28 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
-  TicketIcon,
-  HomeIcon,
-  QuestionMarkCircleIcon,
+  ChartBarIcon,
+  DocumentIcon,
+  BookOpenIcon,
+  LifebuoyIcon,
 } from '@heroicons/react/24/outline'
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'My Tickets', href: '/tickets', icon: TicketIcon },
-  { name: 'Help Center', href: '/help', icon: QuestionMarkCircleIcon },
+  { name: 'Portfolio', href: '/portfolio', icon: ChartBarIcon },
+  { name: 'Documents', href: '/documents', icon: DocumentIcon },
+  { name: 'Research', href: '/research', icon: BookOpenIcon },
+  { name: 'Support', href: '/support', icon: LifebuoyIcon }
 ]
 
-export default function CustomerNav() {
+export default function ClientNav() {
   const pathname = usePathname()
 
   return (
     <div className="hidden lg:flex lg:flex-col">
       <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-background px-6 pb-4">
         <div className="flex h-16 shrink-0 items-center">
-          <Link href="/dashboard" className="flex items-center space-x-2">
-            <span className="font-bold text-xl">AutoCRM</span>
+          <Link href="/portfolio" className="flex items-center space-x-2">
+            <span className="font-bold text-xl">Dreamscape Capital</span>
           </Link>
         </div>
         <nav className="flex flex-1 flex-col">
@@ -64,9 +66,9 @@ export default function CustomerNav() {
                 className="w-full justify-start gap-x-3"
                 asChild
               >
-                <Link href="/tickets/new">
-                  <TicketIcon className="h-6 w-6 shrink-0" />
-                  New Ticket
+                <Link href="/support">
+                  <LifebuoyIcon className="h-6 w-6 shrink-0" />
+                  Get Support
                 </Link>
               </Button>
             </li>

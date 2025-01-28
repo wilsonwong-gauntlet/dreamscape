@@ -1,7 +1,7 @@
 import { Metadata, ResolvingMetadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
-import ArticleForm from '@/components/knowledge/ArticleForm'
+import ArticleForm from '@/components/research/ArticleForm'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -68,7 +68,7 @@ export default async function EditArticlePage({ params }: Props) {
       <ArticleForm 
         categories={categories || []}
         initialData={article}
-        redirectPath="/admin/knowledge/articles"
+        redirectPath="/admin/research/articles"
       />
     </div>
   )

@@ -1,6 +1,6 @@
 import { Metadata } from 'next'
+import ArticleForm from '@/components/research/ArticleForm'
 import { createClient } from '@/utils/supabase/server'
-import ArticleForm from '@/components/knowledge/ArticleForm'
 
 export const metadata: Metadata = {
   title: 'Create Article',
@@ -23,7 +23,7 @@ export default async function NewArticlePage() {
       <ArticleForm 
         categories={categories || []}
         initialData={{}}
-        redirectPath="/admin/knowledge/articles"
+        redirectPath="/admin/research/articles"
       />
     </div>
   )

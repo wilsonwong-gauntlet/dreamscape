@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 
 export default function AdminSettingsPage() {
-  const [companyName, setCompanyName] = useState('AutoCRM')
+  const [companyName, setCompanyName] = useState('InvestorSync')
   const [emailNotifications, setEmailNotifications] = useState(true)
   const [slackNotifications, setSlackNotifications] = useState(false)
   const [autoAssignment, setAutoAssignment] = useState(true)

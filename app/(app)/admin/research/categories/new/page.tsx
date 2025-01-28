@@ -1,6 +1,6 @@
 import { Metadata, ResolvingMetadata } from 'next'
 import { createClient } from '@/utils/supabase/server'
-import { CategoryForm } from '@/components/knowledge/CategoryForm'
+import { CategoryForm } from '@/components/research/CategoryForm'
 
 type Props = {
   params: Promise<{}>
@@ -40,7 +40,7 @@ export default async function NewCategoryPage() {
       <CategoryForm 
         categories={categories || []}
         initialData={{}}
-        redirectPath="/admin/knowledge/categories"
+        redirectPath="/admin/research/categories"
       />
     </div>
   )

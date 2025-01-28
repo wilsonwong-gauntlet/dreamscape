@@ -37,7 +37,7 @@ export function CategoryList({ categories, isAdmin = false }: CategoryListProps)
 
   async function handleDelete(categoryId: string) {
     try {
-      const response = await fetch(`/api/knowledge/categories/${categoryId}`, {
+      const response = await fetch(`/api/research/categories/${categoryId}`, {
         method: 'DELETE',
       })
 
@@ -62,8 +62,8 @@ export function CategoryList({ categories, isAdmin = false }: CategoryListProps)
               <CardTitle className="text-xl">
                 <Link 
                   href={isAdmin 
-                    ? `/admin/knowledge/categories/${category.slug}/edit`
-                    : `/knowledge/categories/${category.slug}`
+                    ? `/admin/research/categories/${category.slug}/edit`
+                    : `/research/categories/${category.slug}`
                   }
                   className="hover:text-primary"
                 >
@@ -86,7 +86,7 @@ export function CategoryList({ categories, isAdmin = false }: CategoryListProps)
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem asChild>
-                    <Link href={`/admin/knowledge/categories/${category.slug}/edit`}>
+                    <Link href={`/admin/research/categories/${category.slug}/edit`}>
                       Edit category
                     </Link>
                   </DropdownMenuItem>

@@ -31,7 +31,7 @@ interface CategoryFormProps {
 export function CategoryForm({ 
   categories, 
   initialData,
-  redirectPath = '/knowledge/categories'
+  redirectPath = '/research/categories'
 }: CategoryFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
@@ -49,18 +49,17 @@ export function CategoryForm({
     setIsLoading(true)
 
     try {
-      const response = await fetch(
-        isEditing 
-          ? `/api/knowledge/categories/${initialData.id}`
-          : '/api/knowledge/categories',
-        {
-          method: isEditing ? 'PUT' : 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(formData),
-        }
-      )
+      const endpoint = initialData
+        ? `/api/research/categories/${initialData.id}`
+        : '/api/research/categories'
+
+      const response = await fetch(endpoint, {
+        method: isEditing ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
 
       if (!response.ok) {
         throw new Error('Failed to save category')

@@ -73,7 +73,7 @@ const PLATFORMS = [
 export default function ArticleForm({ 
   categories, 
   initialData,
-  redirectPath = '/admin/knowledge/articles'
+  redirectPath = '/admin/research/articles'
 }: ArticleFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
@@ -138,10 +138,12 @@ export default function ArticleForm({
     setIsLoading(true)
 
     try {
+      const endpoint = initialData
+        ? `/api/research/articles/${initialData.id}`
+        : '/api/research/articles'
+
       const response = await fetch(
-        isEditing 
-          ? `/api/knowledge/articles/${initialData.id}`
-          : '/api/knowledge/articles',
+        endpoint,
         {
           method: isEditing ? 'PUT' : 'POST',
           headers: {
