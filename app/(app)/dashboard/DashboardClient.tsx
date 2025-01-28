@@ -22,9 +22,15 @@ interface DashboardClientProps {
   customer: any
 }
 
+interface CustomerDetails {
+  email?: string
+  name?: string
+  full_name?: string
+}
+
 export function DashboardClient({ agent, customer }: DashboardClientProps) {
   const [metrics, setMetrics] = useState<any>(null)
-  const [customerDetails, setCustomerDetails] = useState<{ email?: string } | null>(null)
+  const [customerDetails, setCustomerDetails] = useState<CustomerDetails | null>(null)
 
   useEffect(() => {
     async function fetchMetrics() {
