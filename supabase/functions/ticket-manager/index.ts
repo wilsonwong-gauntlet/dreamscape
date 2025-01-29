@@ -256,7 +256,41 @@ serve(async (req) => {
           - Validate all trade details before execution
           - Include relevant disclaimers for financial advice
           - Format responses clearly for client communication
-          - Handle errors gracefully with clear explanations`
+          - Handle errors gracefully with clear explanations
+
+          After using any tools, evaluate:
+          - How directly the tool results answer the question (0-1)
+          - How reliable/authoritative the information is (0-1)
+          - Whether human expertise is needed to interpret or validate
+          - Whether additional context or clarification is needed
+
+          Your response should be in JSON format with the following structure:
+          {
+            "response": "your detailed response to the customer",
+            "analysis": {
+              "can_auto_resolve": boolean,
+              "confidence": number (0-1),
+              "tool_evaluation": {
+                "relevance": number (0-1),
+                "reliability": number (0-1),
+                "needs_human_review": boolean,
+                "needs_clarification": boolean
+              },
+              "routing_analysis": {
+                "priority": "low" | "medium" | "high" | "urgent",
+                "category": string,
+                "tags": string[],
+                "complexity": "simple" | "medium" | "complex",
+                "expertise": string[]
+              }
+            }
+          }
+
+          Set confidence based on:
+          - For knowledge base queries: combine relevance and reliability scores
+          - For trade executions: certainty of order details and validation
+          - For complex requests: lower confidence if human expertise needed
+          - Overall: lower confidence if clarification needed`
         },
         {
           role: "user",
@@ -283,28 +317,67 @@ serve(async (req) => {
     console.log('Agent result:', {
       contentLength: result.content?.length,
       messageCount: result.messages?.length,
-      fullResult: result // Log the full result to see its structure
+      fullResult: JSON.stringify(result)
     });
 
-    // Get the final response from the agent
-    const finalResponse = result.output || result.messages?.[result.messages.length - 1]?.content || result.content;
-    console.log('Final response:', {
-      response: finalResponse,
-      length: finalResponse?.length
-    });
+    // Parse the response and analysis
+    let parsedResponse;
+    try {
+      // Find the last message that contains a JSON response
+      const lastMessage = result.messages[result.messages.length - 1];
+      if (!lastMessage?.content) {
+        throw new Error('No content in last message');
+      }
+
+      // Clean the content (remove code block markers if present)
+      const content = lastMessage.content.replace(/^```json\n/, '').replace(/\n```$/, '');
+      
+      // Parse the JSON
+      parsedResponse = JSON.parse(content);
+
+      // Validate the parsed response structure
+      if (!parsedResponse.response || !parsedResponse.analysis) {
+        throw new Error('Invalid response structure');
+      }
+    } catch (e) {
+      console.warn('Failed to parse AI response:', e);
+      console.warn('Last message content:', result.messages[result.messages.length - 1]?.content);
+      parsedResponse = {
+        response: "Failed to generate response",
+        analysis: {
+          can_auto_resolve: false,
+          confidence: 0.0,
+          routing_analysis: {
+            priority: 'medium',
+            category: 'general',
+            tags: [],
+            complexity: 'medium',
+            expertise: []
+          }
+        }
+      };
+    }
+
+    // Determine ticket status based on analysis
+    const newStatus = parsedResponse.analysis.can_auto_resolve && parsedResponse.analysis.confidence > 0.8
+      ? 'resolved'
+      : parsedResponse.analysis.confidence > 0.5
+        ? 'open'
+        : 'pending';
 
     // Create ticket response
     const { error: responseError } = await supabaseClient
       .from('ticket_responses')
       .insert({
         ticket_id: ticket.id,
-        content: finalResponse,
+        content: parsedResponse.response,
         type: 'ai',
         is_internal: false,
         metadata: {
           agent_execution: {
             messages: result.messages,
-            tool_calls: result.tool_calls
+            tool_calls: result.tool_calls,
+            analysis: parsedResponse.analysis
           }
         }
       });
@@ -317,13 +390,15 @@ serve(async (req) => {
     const { error: updateError } = await supabaseClient
       .from('tickets')
       .update({
-        status: 'processed',
+        status: newStatus,
+        priority: parsedResponse.analysis.routing_analysis.priority,
         metadata: {
           ...ticket.metadata,
           agent_execution: {
             messages: result.messages,
-            content: finalResponse,
-            tool_calls: result.tool_calls
+            content: parsedResponse.response,
+            tool_calls: result.tool_calls,
+            analysis: parsedResponse.analysis
           }
         }
       })
@@ -335,10 +410,11 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        response: finalResponse,
+        response: parsedResponse.response,
+        status: newStatus,
+        analysis: parsedResponse.analysis,
         execution: {
           messages: result.messages,
-          content: finalResponse,
           tool_calls: result.tool_calls
         }
       }),
