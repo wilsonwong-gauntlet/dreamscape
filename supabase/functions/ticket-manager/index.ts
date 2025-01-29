@@ -114,7 +114,7 @@ const customerHistoryTool = tool(
     try {
       const { data: history, error } = await supabaseClient
         .from('tickets')
-        .select('*')
+        .select('status, created_at')
         .eq('userId', input.userId)
         .order('created_at', { ascending: false })
         .limit(5);
@@ -365,7 +365,49 @@ serve(async (req) => {
         ? 'open'
         : 'pending';
 
-    // Create ticket response
+    // Update ticket in database with enhanced routing information
+    const { error: updateError } = await supabaseClient
+      .from('tickets')
+      .update({
+        status: newStatus,
+        priority: parsedResponse.analysis.routing_analysis.priority,
+        tags: parsedResponse.analysis.routing_analysis.tags,
+        ai_confidence_score: parsedResponse.analysis.confidence,
+        ai_response_used: true,
+        ai_interaction_count: ticket.ai_interaction_count ? ticket.ai_interaction_count + 1 : 1,
+        metadata: {
+          ...ticket.metadata,
+          agent_execution: {
+            messages: result.messages,
+            content: parsedResponse.response,
+            tool_calls: result.tool_calls,
+            analysis: parsedResponse.analysis,
+            last_evaluation: {
+              relevance: parsedResponse.analysis.tool_evaluation?.relevance || 0,
+              reliability: parsedResponse.analysis.tool_evaluation?.reliability || 0,
+              needs_human_review: parsedResponse.analysis.tool_evaluation?.needs_human_review || false,
+              needs_clarification: parsedResponse.analysis.tool_evaluation?.needs_clarification || false,
+              confidence: parsedResponse.analysis.confidence,
+              can_auto_resolve: parsedResponse.analysis.can_auto_resolve
+            },
+            routing: {
+              category: parsedResponse.analysis.routing_analysis.category,
+              tags: parsedResponse.analysis.routing_analysis.tags,
+              complexity: parsedResponse.analysis.routing_analysis.complexity,
+              expertise: parsedResponse.analysis.routing_analysis.expertise,
+              priority: parsedResponse.analysis.routing_analysis.priority
+            }
+          }
+        }
+      })
+      .eq('id', ticket.id);
+
+    if (updateError) {
+      console.error('Error updating ticket:', updateError);
+      throw new Error(`Failed to update ticket: ${updateError.message}`);
+    }
+
+    // Create ticket response with enhanced metadata
     const { error: responseError } = await supabaseClient
       .from('ticket_responses')
       .insert({
@@ -377,35 +419,21 @@ serve(async (req) => {
           agent_execution: {
             messages: result.messages,
             tool_calls: result.tool_calls,
-            analysis: parsedResponse.analysis
+            analysis: parsedResponse.analysis,
+            routing: {
+              category: parsedResponse.analysis.routing_analysis.category,
+              tags: parsedResponse.analysis.routing_analysis.tags,
+              complexity: parsedResponse.analysis.routing_analysis.complexity,
+              expertise: parsedResponse.analysis.routing_analysis.expertise,
+              priority: parsedResponse.analysis.routing_analysis.priority
+            }
           }
         }
       });
 
     if (responseError) {
       console.error('Error creating ticket response:', responseError);
-    }
-
-    // Update ticket in database
-    const { error: updateError } = await supabaseClient
-      .from('tickets')
-      .update({
-        status: newStatus,
-        priority: parsedResponse.analysis.routing_analysis.priority,
-        metadata: {
-          ...ticket.metadata,
-          agent_execution: {
-            messages: result.messages,
-            content: parsedResponse.response,
-            tool_calls: result.tool_calls,
-            analysis: parsedResponse.analysis
-          }
-        }
-      })
-      .eq('id', ticket.id);
-
-    if (updateError) {
-      console.error('Error updating ticket:', updateError);
+      throw new Error(`Failed to create ticket response: ${responseError.message}`);
     }
 
     return new Response(
@@ -413,6 +441,13 @@ serve(async (req) => {
         response: parsedResponse.response,
         status: newStatus,
         analysis: parsedResponse.analysis,
+        routing: {
+          category: parsedResponse.analysis.routing_analysis.category,
+          tags: parsedResponse.analysis.routing_analysis.tags,
+          complexity: parsedResponse.analysis.routing_analysis.complexity,
+          expertise: parsedResponse.analysis.routing_analysis.expertise,
+          priority: parsedResponse.analysis.routing_analysis.priority
+        },
         execution: {
           messages: result.messages,
           tool_calls: result.tool_calls
