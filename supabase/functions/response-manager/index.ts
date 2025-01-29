@@ -14,6 +14,8 @@ import { ChatOpenAI } from "@langchain/openai"
 import { createReactAgent } from "@langchain/langgraph/prebuilt"
 // @ts-ignore: Deno deploy imports
 import { z } from "zod"
+// @ts-ignore: Deno deploy imports
+import { CallbackManager } from "@langchain/core/callbacks/manager"
 
 // Add Deno types
 declare const Deno: {
@@ -92,19 +94,6 @@ const customerHistoryTool = tool(
   }
 );
 
-// Initialize model with streaming
-const model = new ChatOpenAI({
-  modelName: "gpt-4-turbo-preview",
-  temperature: 0,
-  streaming: true
-});
-
-// Create the React Agent with the tool-enabled model
-const agent = createReactAgent({
-  llm: model,
-  tools: [kbSearchTool, customerHistoryTool]
-});
-
 // Main handler
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -166,160 +155,189 @@ serve(async (req) => {
       content
     });
 
-    // Create the agent input
-    const agentInput = {
-      messages: [
-        {
-          role: "system",
-          content: `You are an AI wealth management support system responding to customer inquiries.
-          
-          Context:
-          - Ticket Title: ${ticket.title}
-          - Ticket Description: ${ticket.description}
-          - Customer History: Available via customer_history tool
-          - Knowledge Base: Available via kb_search tool
-          
-          Your role:
-          1. Understand the customer's query in context of the conversation history
-          2. Search knowledge base for relevant information
-          3. Consider customer history for context
-          4. Provide detailed, compliant responses
-          5. Maintain professional tone
-          6. Include relevant disclaimers for financial advice
-          
-          After analysis, respond in JSON format:
-          {
-            "response": "your detailed response to the customer",
-            "analysis": {
-              "can_auto_resolve": boolean,
-              "confidence": number (0-1),
-              "tool_evaluation": {
-                "relevance": number (0-1),
-                "reliability": number (0-1),
-                "needs_human_review": boolean,
-                "needs_clarification": boolean
-              },
-              "routing_analysis": {
-                "priority": "low" | "medium" | "high" | "urgent",
-                "category": string,
-                "tags": string[],
-                "complexity": "simple" | "medium" | "complex",
-                "expertise": string[]
-              }
-            }
-          }`
-        },
-        ...conversationHistory.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }))
-      ]
-    };
+    // Check if client wants streaming
+    const wantsStreaming = req.headers.get("accept") === "text/event-stream";
+    let responseContent = "";
 
-    // Execute the agent
-    const result = await agent.invoke(agentInput);
-    console.log('Agent result:', {
-      contentLength: result.content?.length,
-      messageCount: result.messages?.length
+    // Set up streaming if requested
+    const encoder = new TextEncoder();
+    const stream = new TransformStream();
+    const writer = stream.writable.getWriter();
+
+    // Initialize model with streaming and callbacks
+    const model = new ChatOpenAI({
+      modelName: "gpt-4-turbo-preview",
+      temperature: 0,
+      streaming: true,
+      verbose: true
     });
 
-    // Parse the response
-    let parsedResponse;
+    // Instead of using invoke, use stream method directly
     try {
-      const lastMessage = result.messages[result.messages.length - 1];
-      if (!lastMessage?.content) {
-        throw new Error('No content in last message');
+      // First, search knowledge base for relevant info
+      const kbResults = await kbSearchTool.invoke(content);
+      console.log('[Edge] Knowledge base results:', kbResults);
+
+      // Get customer history if available
+      let customerHistory = '[]';
+      if (ticket.customer?.id) {
+        customerHistory = await customerHistoryTool.invoke({ customerId: ticket.customer.id });
       }
+      console.log('[Edge] Customer history:', customerHistory);
 
-      // Clean the content (remove code block markers if present)
-      const content = lastMessage.content.replace(/^```json\n/, '').replace(/\n```$/, '');
-      parsedResponse = JSON.parse(content);
+      // Create the full prompt with context
+      const messages = [
+        new SystemMessage(`You are an AI wealth management support system responding to customer inquiries.
+          
+        Context:
+        - Ticket Title: ${ticket.title}
+        - Ticket Description: ${ticket.description}
+        - Knowledge Base Results: ${kbResults}
+        - Customer History: ${customerHistory}
+        
+        Your role:
+        1. Use the provided knowledge base information and customer history
+        2. Provide detailed, compliant responses
+        3. Maintain professional tone
+        4. Include relevant disclaimers for financial advice`),
+        ...conversationHistory.map(msg => 
+          msg.role === 'user' 
+            ? new HumanMessage(msg.content)
+            : new AIMessage(msg.content)
+        )
+      ];
 
-      if (!parsedResponse.response || !parsedResponse.analysis) {
-        throw new Error('Invalid response structure');
-      }
-    } catch (e) {
-      console.warn('Failed to parse AI response:', e);
-      parsedResponse = {
-        response: "Failed to generate response",
-        analysis: {
-          can_auto_resolve: false,
-          confidence: 0.0,
-          routing_analysis: {
-            priority: 'medium',
-            category: 'general',
-            tags: [],
-            complexity: 'medium',
-            expertise: []
-          }
-        }
-      };
-    }
-
-    // Create the response in the database
-    const { error: responseError } = await supabaseClient
-      .from('ticket_responses')
-      .insert({
-        ticket_id: ticketId,
-        content: parsedResponse.response,
-        type: 'ai',
-        is_internal: false,
-        metadata: {
-          agent_execution: {
-            messages: result.messages,
-            tool_calls: result.tool_calls,
-            analysis: parsedResponse.analysis,
-            routing: {
-              category: parsedResponse.analysis.routing_analysis.category,
-              tags: parsedResponse.analysis.routing_analysis.tags,
-              complexity: parsedResponse.analysis.routing_analysis.complexity,
-              expertise: parsedResponse.analysis.routing_analysis.expertise,
-              priority: parsedResponse.analysis.routing_analysis.priority
+      // Generate response using stream method
+      if (wantsStreaming) {
+        console.log('[Edge] Starting streaming generation');
+        const stream = await model.stream(messages);
+        
+        // Create encoder for SSE
+        const encoder = new TextEncoder();
+        
+        // Create response with streaming
+        return new Response(
+          new ReadableStream({
+            async start(controller) {
+              // Send started event
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ status: 'started' })}\n\n`));
+              
+              try {
+                for await (const chunk of stream) {
+                  if (chunk.content) {
+                    const content = typeof chunk.content === 'string' 
+                      ? chunk.content 
+                      : Array.isArray(chunk.content)
+                        ? chunk.content.map(c => typeof c === 'string' ? c : '').join('')
+                        : '';
+                        
+                    if (content) {
+                      console.log('[Edge] Streaming chunk:', content);
+                      controller.enqueue(
+                        encoder.encode(`data: ${JSON.stringify({ content })}\n\n`)
+                      );
+                    }
+                  }
+                }
+                
+                // Send completed event
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ status: 'complete' })}\n\n`));
+              } catch (error) {
+                console.error('[Edge] Error in stream:', error);
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify({ error: String(error) })}\n\n`)
+                );
+              } finally {
+                controller.close();
+              }
+            }
+          }),
+          {
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+              ...corsHeaders
             }
           }
-        }
-      });
-
-    if (responseError) {
-      console.error('Error creating response:', responseError);
-      throw new Error(`Failed to create response: ${responseError.message}`);
-    }
-
-    // Update ticket with latest analysis
-    const { error: updateError } = await supabaseClient
-      .from('tickets')
-      .update({
-        status: parsedResponse.analysis.can_auto_resolve ? 'resolved' : 'open',
-        priority: parsedResponse.analysis.routing_analysis.priority,
-        tags: parsedResponse.analysis.routing_analysis.tags,
-        ai_confidence_score: parsedResponse.analysis.confidence,
-        ai_response_used: true,
-        ai_interaction_count: ticket.ai_interaction_count ? ticket.ai_interaction_count + 1 : 1,
-        metadata: {
-          ...ticket.metadata,
-          last_agent_execution: {
-            messages: result.messages,
-            tool_calls: result.tool_calls,
-            analysis: parsedResponse.analysis
-          }
-        }
-      })
-      .eq('id', ticketId);
-
-    if (updateError) {
-      console.error('Error updating ticket:', updateError);
-      throw new Error(`Failed to update ticket: ${updateError.message}`);
-    }
-
-    return new Response(
-      JSON.stringify({
-        response: parsedResponse.response,
-        analysis: parsedResponse.analysis
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        );
+      } else {
+        console.log('[Edge] Starting non-streaming generation');
+        const response = await model.invoke(messages);
+        responseContent = response.content;
       }
-    );
+
+      // Create the response in database
+      const { error: responseError } = await supabaseClient
+        .from('ticket_responses')
+        .insert({
+          ticket_id: ticketId,
+          content: responseContent,
+          type: 'ai',
+          is_internal: false,
+          metadata: {
+            knowledge_base: JSON.parse(kbResults),
+            customer_history: JSON.parse(customerHistory),
+            conversation_history: conversationHistory
+          }
+        });
+
+      if (responseError) {
+        console.error('[Edge] Error creating response:', responseError);
+      }
+
+      // Update ticket
+      const { error: updateError } = await supabaseClient
+        .from('tickets')
+        .update({
+          status: 'open',
+          ai_response_used: true,
+          ai_interaction_count: ticket.ai_interaction_count ? ticket.ai_interaction_count + 1 : 1
+        })
+        .eq('id', ticketId);
+
+      if (updateError) {
+        console.error('[Edge] Error updating ticket:', updateError);
+      }
+
+      if (wantsStreaming) {
+        return new Response(stream.readable, {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
+          }
+        });
+      } else {
+        return new Response(
+          JSON.stringify({
+            response: responseContent,
+            status: 'success'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } catch (error) {
+      console.error('[Edge] Error:', error);
+      if (wantsStreaming) {
+        writer.abort(error);
+        return new Response(stream.readable, {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'text/event-stream'
+          }
+        });
+      } else {
+        return new Response(
+          JSON.stringify({ error: error.message }),
+          { 
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+    }
   } catch (error) {
     console.error('Error processing request:', error);
     return new Response(

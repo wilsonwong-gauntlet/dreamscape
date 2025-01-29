@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { adminAuthClient } from "@/utils/supabase/server"
+import { useSWRConfig } from 'swr'
+import { useTicketResponses } from "@/lib/hooks/useTicketResponses"
 
 interface Macro {
   id: string
@@ -64,10 +66,11 @@ interface TicketResponseComposerProps {
       name: string
     }
   }
-  onResponseAdded: () => void
+  onResponseAdded?: () => void
 }
 
 export default function TicketResponseComposer({ ticketId, ticket, onResponseAdded }: TicketResponseComposerProps) {
+  const { mutate } = useSWRConfig()
   const [content, setContent] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -82,9 +85,13 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
   const [variableValues, setVariableValues] = useState<Record<string, string>>({})
   const [customerData, setCustomerData] = useState<any>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [streamingResponse, setStreamingResponse] = useState("")
+  const [isStreaming, setIsStreaming] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const { addOptimisticResponse, updateOptimisticResponse } = useTicketResponses(ticketId)
 
   useEffect(() => {
-    console.log('TicketResponseComposer mounted with ticket:', ticket)
+    console.log('[TicketResponseComposer] Mounted with ticket:', ticket)
     if (ticket.customer_id) {
       fetchCustomerData()
     }
@@ -211,35 +218,165 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
     applyMacroContent(currentMacro, variableValues)
   }
 
-  const handleSubmit = async () => {
-    if (!content.trim()) return
+  const handleStreamMessage = async (jsonData: any, humanResponseId: string, aiResponseId: string) => {
+    if (jsonData.humanResponseId) {
+      console.log('[TicketResponseComposer] Received human response ID:', jsonData.humanResponseId)
+      await updateOptimisticResponse(humanResponseId, {
+        ...jsonData.response,
+        id: jsonData.humanResponseId
+      })
+    } else if (jsonData.status === 'started') {
+      console.log('[TicketResponseComposer] AI generation started')
+      setStreamingResponse("")
+    } else if (jsonData.status === 'complete') {
+      console.log('[TicketResponseComposer] AI generation complete')
+      setIsStreaming(false)
+    } else if (jsonData.content) {
+      console.log('[TicketResponseComposer] Received content:', jsonData.content)
+      setStreamingResponse(prev => {
+        const newContent = prev + jsonData.content
+        console.log('[TicketResponseComposer] Updated streaming content:', newContent)
+        
+        // Update optimistic response
+        updateOptimisticResponse(aiResponseId, {
+          id: aiResponseId,
+          content: newContent,
+          type: 'ai',
+          is_internal: false,
+          created_at: new Date().toISOString()
+        })
+        return newContent
+      })
+    }
+  }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!content.trim() || isSubmitting) return
+
+    console.log('[TicketResponseComposer] Starting submission with content:', content.slice(0, 100) + '...')
     setIsSubmitting(true)
-    setError(null)
+    setStreamingResponse("")
+    setIsStreaming(true)
 
     try {
+      // Create optimistic human response
+      console.log('[TicketResponseComposer] Creating optimistic human response')
+      const humanResponseId = await addOptimisticResponse({
+        content: content.trim(),
+        type: 'human',
+        is_internal: isInternal
+      })
+      console.log('[TicketResponseComposer] Created optimistic human response:', humanResponseId)
+
+      // Setup abort controller for streaming
+      abortControllerRef.current = new AbortController()
+
+      console.log('[TicketResponseComposer] Sending request to API')
       const response = await fetch(`/api/tickets/${ticketId}/responses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'text/event-stream'
         },
         body: JSON.stringify({
           content: content.trim(),
           type: 'human',
-          is_internal: isInternal,
+          is_internal: isInternal
         }),
+        signal: abortControllerRef.current.signal
       })
 
       if (!response.ok) {
-        throw new Error('Failed to submit response')
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
+      console.log('[TicketResponseComposer] Response received:', {
+        status: response.status,
+        contentType: response.headers.get('Content-Type')
+      })
+
+      // Add optimistic AI response for streaming
+      console.log('[TicketResponseComposer] Creating optimistic AI response')
+      const aiResponseId = await addOptimisticResponse({
+        content: '',
+        type: 'ai',
+        is_internal: false
+      })
+      console.log('[TicketResponseComposer] Created optimistic AI response:', aiResponseId)
+
+      if (response.headers.get('Content-Type')?.includes('text/event-stream')) {
+        console.log('[TicketResponseComposer] Starting stream processing')
+        const reader = response.body?.getReader()
+        if (!reader) {
+          console.error('[TicketResponseComposer] No reader available')
+          return
+        }
+        const decoder = new TextDecoder()
+        
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            
+            if (done) {
+              console.log('[TicketResponseComposer] Stream complete')
+              break
+            }
+
+            const chunk = decoder.decode(value)
+            console.log('[TicketResponseComposer] Raw chunk received:', chunk)
+            
+            const lines = chunk.split('\n')
+            console.log('[TicketResponseComposer] Split into lines:', lines)
+            
+            for (const line of lines) {
+              if (!line.trim()) continue
+              
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6)
+                console.log('[TicketResponseComposer] Processing data line:', data)
+                
+                try {
+                  const jsonData = JSON.parse(data)
+                  console.log('[TicketResponseComposer] Parsed JSON data:', jsonData)
+                  
+                  if (jsonData.error) {
+                    console.error('[TicketResponseComposer] Stream error:', jsonData.error)
+                    toast.error('Error generating response')
+                    setIsStreaming(false)
+                    break
+                  }
+                  
+                  await handleStreamMessage(jsonData, humanResponseId, aiResponseId)
+                } catch (error) {
+                  console.error('[TicketResponseComposer] Error parsing SSE data:', error)
+                  console.error('[TicketResponseComposer] Raw data that caused error:', data)
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[TicketResponseComposer] Stream processing error:', error)
+        } finally {
+          reader.releaseLock()
+          console.log('[TicketResponseComposer] Stream reader released')
+        }
+      }
+
+      // Reset form
       setContent("")
-      onResponseAdded()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit response')
+      onResponseAdded?.()
+      toast.success('Response sent successfully')
+    } catch (error) {
+      console.error('[TicketResponseComposer] Error submitting response:', error)
+      toast.error('Failed to submit response')
     } finally {
+      console.log('[TicketResponseComposer] Submission complete')
       setIsSubmitting(false)
+      setIsStreaming(false)
+      if (abortControllerRef.current) {
+        abortControllerRef.current = null
+      }
     }
   }
 
@@ -295,6 +432,17 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
     }
   }, [error])
 
+  // Cleanup streaming on unmount
+  useEffect(() => {
+    return () => {
+      console.log('[TicketResponseComposer] Unmounting, cleaning up streams')
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+    }
+  }, [])
+
   return (
     <div className="space-y-4">
       {/* Quick Actions */}
@@ -332,6 +480,7 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
               isInternal && "bg-gray-50/80 border-gray-200",
               error && "border-red-300"
             )}
+            disabled={isSubmitting}
           />
           <div className="absolute right-2 top-2 flex flex-col gap-2">
             <TooltipProvider>
@@ -514,6 +663,15 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
           </div>
         </DialogContent>
       </Dialog>
+
+      {streamingResponse && (
+        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+          <h3 className="text-sm font-medium text-gray-900 mb-2">AI Response Preview:</h3>
+          <div className="prose prose-sm max-w-none">
+            {streamingResponse}
+          </div>
+        </div>
+      )}
     </div>
   )
 } 

@@ -25,7 +25,7 @@ import {
   MoreHorizontal, Clock, User, Tag, History, ChevronDown, 
   ChevronUp, MessageSquare, Users, Phone, Mail, Globe,
   AlertCircle, CheckCircle2, Timer, ArrowUpCircle, XCircle,
-  Calendar, ArrowRight, Inbox, RefreshCw
+  Calendar, ArrowRight, Inbox, RefreshCw, Loader2
 } from "lucide-react"
 import { formatDistanceToNow, format } from "date-fns"
 import type { Ticket } from "@/types/database"
@@ -42,6 +42,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useTicketResponses } from "@/lib/hooks/useTicketResponses"
 
 type TicketStatus = 'new' | 'open' | 'pending' | 'resolved' | 'closed'
 type TicketPriority = 'low' | 'medium' | 'high' | 'urgent'
@@ -156,17 +157,43 @@ export default function TicketDetail({
 }: TicketDetailProps) {
   const [ticket, setTicket] = useState<LocalTicket>(initialTicket)
   const [newTag, setNewTag] = useState("")
-  const [responseKey, setResponseKey] = useState(0)
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(true)
   const [isResponsesExpanded, setIsResponsesExpanded] = useState(true)
   
+  // Use the responses hook
+  const { responses, isLoading: isLoadingResponses } = useTicketResponses(ticket.id)
+  
+  useEffect(() => {
+    console.log('[TicketDetail] Initial render with responses:', responses?.length)
+  }, [])
+
+  useEffect(() => {
+    console.log('[TicketDetail] Responses updated:', {
+      count: responses?.length,
+      isLoading: isLoadingResponses
+    })
+  }, [responses, isLoadingResponses])
+  
   // Calculate total pages
   const totalHistoryPages = Math.ceil((ticket.history?.length || 0) / ITEMS_PER_PAGE)
-  const totalResponsePages = Math.ceil((ticket.responses?.length || 0) / ITEMS_PER_PAGE)
+  const totalResponsePages = Math.ceil((responses?.length || 0) / ITEMS_PER_PAGE)
   
   // Initialize to first page since newest items are at the start
   const [historyPage, setHistoryPage] = useState(1)
   const [responsesPage, setResponsesPage] = useState(1)
+
+  // Get paginated responses
+  const paginatedResponses = responses
+    ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    ?.slice((responsesPage - 1) * ITEMS_PER_PAGE, responsesPage * ITEMS_PER_PAGE)
+
+  useEffect(() => {
+    console.log('[TicketDetail] Paginated responses:', {
+      page: responsesPage,
+      totalPages: totalResponsePages,
+      displayedResponses: paginatedResponses?.length
+    })
+  }, [paginatedResponses, responsesPage, totalResponsePages])
 
   useEffect(() => {
     console.log('Initial Ticket:', initialTicket)
@@ -178,12 +205,9 @@ export default function TicketDetail({
   useEffect(() => {
     setTicket(prev => ({
       ...initialTicket,
-      // Sort history and responses in reverse chronological order
+      // Sort history in reverse chronological order
       history: initialTicket.history.sort((a, b) => 
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      ),
-      responses: initialTicket.responses.sort((a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
     }))
   }, [initialTicket])
@@ -368,11 +392,6 @@ export default function TicketDetail({
     historyPage * ITEMS_PER_PAGE
   )
 
-  const paginatedResponses = ticket.responses?.slice(
-    (responsesPage - 1) * ITEMS_PER_PAGE,
-    responsesPage * ITEMS_PER_PAGE
-  )
-
   const statusColors = {
     new: 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300',
     open: 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300',
@@ -387,13 +406,6 @@ export default function TicketDetail({
     high: 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 hover:border-orange-300',
     urgent: 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 hover:border-rose-300'
   } as const
-
-  const handleResponseAdded = () => {
-    // Reset to first page to show new response
-    setResponsesPage(1)
-    // Update response key to force composer refresh
-    setResponseKey(prev => prev + 1)
-  }
 
   const statusIcons = {
     new: <Inbox className="h-4 w-4" />,
@@ -744,10 +756,8 @@ export default function TicketDetail({
             </CardHeader>
             <CardContent className="p-6">
               <TicketResponseComposer
-                key={responseKey}
                 ticketId={ticket.id}
                 ticket={ticket}
-                onResponseAdded={handleResponseAdded}
               />
             </CardContent>
           </Card>
@@ -790,40 +800,51 @@ export default function TicketDetail({
               )}
             </CardHeader>
             <CardContent className="px-6 divide-y divide-gray-100">
-              {paginatedResponses?.map(response => (
-                <div key={response.id} className="py-4 first:pt-2 last:pb-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-700 text-sm font-medium">
-                        {(response.author?.user_metadata?.name || response.author?.email || 'S').slice(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {response.author?.user_metadata?.name || response.author?.email || 'System'}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {formatDistanceToNow(new Date(response.created_at))} ago
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {response.is_internal && (
-                        <Badge variant="secondary" className="bg-gray-100">
-                          Internal
-                        </Badge>
-                      )}
-                      {response.type === 'ai' && (
-                        <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">
-                          AI Generated
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-600 pl-10">
-                    {response.content}
-                  </div>
+              {isLoadingResponses ? (
+                <div className="py-8 text-center">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-400" />
+                  <p className="text-sm text-gray-500 mt-2">Loading responses...</p>
                 </div>
-              ))}
+              ) : paginatedResponses?.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-500">
+                  No responses yet
+                </div>
+              ) : (
+                paginatedResponses?.map(response => (
+                  <div key={response.id} className="py-4 first:pt-2 last:pb-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-700 text-sm font-medium">
+                          {(response.author?.user_metadata?.name || response.author?.email || 'S').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {response.author?.user_metadata?.name || response.author?.email || 'System'}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {formatDistanceToNow(new Date(response.created_at))} ago
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {response.is_internal && (
+                          <Badge variant="secondary" className="bg-gray-100">
+                            Internal
+                          </Badge>
+                        )}
+                        {response.type === 'ai' && (
+                          <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">
+                            AI Generated
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600 pl-10">
+                      {response.content}
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>

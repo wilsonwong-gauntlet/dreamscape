@@ -9,6 +9,7 @@
     "@langchain/core/messages": "npm:@langchain/core/messages",
     "@langchain/openai": "npm:@langchain/openai",
     "@langchain/langgraph/prebuilt": "npm:@langchain/langgraph/prebuilt",
+    "@langchain/core/callbacks/manager": "npm:@langchain/core/callbacks/manager",
     "zod": "npm:zod"
   }
 } 
