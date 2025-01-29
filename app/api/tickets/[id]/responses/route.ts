@@ -48,6 +48,47 @@ export async function POST(
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
     }
 
+    // If this is a human response, trigger the AI response manager
+    if (type === 'human') {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      console.log('Attempting to call response-manager with:', {
+        ticketId: id,
+        content,
+        type,
+        url: `${supabaseUrl}/functions/v1/response-manager`
+      });
+      
+      try {
+        const aiResponse = await fetch(
+          `${supabaseUrl}/functions/v1/response-manager`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+            },
+            body: JSON.stringify({
+              ticketId: id,
+              content,
+              type
+            })
+          }
+        );
+
+        console.log('Response manager response status:', aiResponse.status);
+        const responseText = await aiResponse.text();
+        console.log('Response manager response:', responseText);
+
+        if (!aiResponse.ok) {
+          console.error('AI response manager error:', responseText);
+        }
+      } catch (error) {
+        console.error('Error calling response manager:', error);
+      }
+    } else {
+      console.log('Not calling response-manager because type is:', type);
+    }
+
     // Create the response
     const { data: response, error: responseError } = await supabase
       .from('ticket_responses')
