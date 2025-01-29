@@ -282,31 +282,64 @@ serve(async (req) => {
     const result = await agent.invoke(agentInput);
     console.log('Agent result:', {
       contentLength: result.content?.length,
-      messageCount: result.messages?.length
+      messageCount: result.messages?.length,
+      fullResult: result // Log the full result to see its structure
     });
 
+    // Get the final response from the agent
+    const finalResponse = result.output || result.messages?.[result.messages.length - 1]?.content || result.content;
+    console.log('Final response:', {
+      response: finalResponse,
+      length: finalResponse?.length
+    });
+
+    // Create ticket response
+    const { error: responseError } = await supabaseClient
+      .from('ticket_responses')
+      .insert({
+        ticket_id: ticket.id,
+        content: finalResponse,
+        type: 'ai',
+        is_internal: false,
+        metadata: {
+          agent_execution: {
+            messages: result.messages,
+            tool_calls: result.tool_calls
+          }
+        }
+      });
+
+    if (responseError) {
+      console.error('Error creating ticket response:', responseError);
+    }
+
     // Update ticket in database
-    await supabaseClient
+    const { error: updateError } = await supabaseClient
       .from('tickets')
       .update({
         status: 'processed',
-        ai_response: result.content,
         metadata: {
           ...ticket.metadata,
           agent_execution: {
             messages: result.messages,
-            content: result.content
+            content: finalResponse,
+            tool_calls: result.tool_calls
           }
         }
       })
       .eq('id', ticket.id);
 
+    if (updateError) {
+      console.error('Error updating ticket:', updateError);
+    }
+
     return new Response(
       JSON.stringify({
-        response: result.content,
+        response: finalResponse,
         execution: {
           messages: result.messages,
-          content: result.content
+          content: finalResponse,
+          tool_calls: result.tool_calls
         }
       }),
       { 
