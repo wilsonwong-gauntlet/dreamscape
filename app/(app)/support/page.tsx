@@ -99,18 +99,37 @@ export default async function SupportPage() {
     })
 
   // Map customer and agent details to tickets
-  const ticketsWithDetails = tickets?.map(ticket => ({
-    ...ticket,
-    customer: ticket.customer ? {
-      ...ticket.customer,
-      user: customerDetails.find(c => c.id === ticket.customer?.id) || { email: 'unknown@example.com' }
-    } : null,
-    assigned_agent: ticket.assigned_agent ? {
-      ...ticket.assigned_agent,
-      user: agentDetails.find(a => a.id === ticket.assigned_agent?.id) || { email: 'unknown@example.com' }
-    } : null,
-    last_response: ticket.last_response?.[0] || null
-  })) || []
+  const ticketsWithDetails = tickets?.map(ticket => {
+    console.log('Processing ticket:', {
+      id: ticket.id,
+      hasTeam: !!ticket.team,
+      teamData: ticket.team,
+      assignedAgent: ticket.assigned_agent,
+      status: ticket.status,
+      priority: ticket.priority
+    });
+    
+    return {
+      ...ticket,
+      customer: ticket.customer ? {
+        ...ticket.customer,
+        user: customerDetails.find(c => c.id === ticket.customer?.id) || { email: 'unknown@example.com' }
+      } : null,
+      assigned_agent: ticket.assigned_agent ? {
+        ...ticket.assigned_agent,
+        user: agentDetails.find(a => a.id === ticket.assigned_agent?.id) || { email: 'unknown@example.com' }
+      } : null,
+      last_response: ticket.last_response?.[0] || null
+    }
+  }) || []
+
+  console.log('Final tickets data:', {
+    totalTickets: ticketsWithDetails.length,
+    sampleTicket: ticketsWithDetails[0],
+    unassignedCount: ticketsWithDetails.filter(t => !t.team).length,
+    urgentCount: ticketsWithDetails.filter(t => t.priority === 'urgent').length,
+    myTicketsCount: ticketsWithDetails.filter(t => t.assigned_agent?.id === currentUserId).length
+  });
 
   // Fetch teams
   const { data: teams } = await supabase

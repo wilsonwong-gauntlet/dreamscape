@@ -66,32 +66,98 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
   // Memoize quick filters to prevent recreation on every render
   const quickFilters = useMemo(() => [
     {
+      id: 'all',
+      label: 'All Tickets',
+      icon: <MessageSquare className="w-4 h-4" />,
+      filter: (ticket: ExtendedTicket) => true
+    },
+    {
       id: 'myTickets',
       label: 'My Tickets',
       icon: <User className="w-4 h-4" />,
-      filter: (ticket: ExtendedTicket) => ticket.assigned_agent?.id === currentUserId
+      filter: (ticket: ExtendedTicket) => {
+        console.log('My Tickets filter:', {
+          ticketAgentId: ticket.assigned_agent?.id,
+          currentUserId,
+          isMatch: ticket.assigned_agent?.id === currentUserId
+        })
+        return ticket.assigned_agent?.id === currentUserId
+      }
     },
     {
       id: 'unassigned',
       label: 'Unassigned',
       icon: <Users className="w-4 h-4" />,
-      filter: (ticket: ExtendedTicket) => !ticket.assigned_agent
+      filter: (ticket: ExtendedTicket) => {
+        console.log('Unassigned filter:', {
+          hasTeam: !!ticket.team,
+          teamId: ticket.team?.id,
+          isMatch: !ticket.team
+        })
+        return !ticket.team
+      }
     },
     {
       id: 'urgent',
       label: 'Urgent',
       icon: <AlertTriangle className="w-4 h-4" />,
-      filter: (ticket: ExtendedTicket) => ticket.priority === 'urgent'
+      filter: (ticket: ExtendedTicket) => {
+        console.log('Urgent filter:', {
+          priority: ticket.priority,
+          isMatch: ticket.priority === 'urgent'
+        })
+        return ticket.priority === 'urgent'
+      }
     }
   ], [currentUserId])
 
   // Memoize filtered tickets to prevent unnecessary recalculations
   const filteredTickets = useMemo(() => {
     let filtered = tickets
+    console.log('Filtering tickets:', {
+      totalTickets: tickets.length,
+      activeFilter,
+      currentFilters: filters,
+      view
+    })
 
-    // Apply Quick View filters if a view is selected
+    // First apply regular filters
+    if (filters.status.length > 0 || filters.priority.length > 0) {
+      console.log('Applying regular filters:', {
+        statusFilters: filters.status,
+        priorityFilters: filters.priority,
+        beforeCount: filtered.length
+      })
+      filtered = filtered.filter(ticket => {
+        const statusMatch = filters.status.length === 0 || filters.status.includes(ticket.status)
+        const priorityMatch = filters.priority.length === 0 || filters.priority.includes(ticket.priority)
+        return statusMatch && priorityMatch
+      })
+      console.log('After regular filters:', {
+        afterCount: filtered.length
+      })
+    }
+
+    // Then apply quick filter if selected
+    if (activeFilter) {
+      const filter = quickFilters.find(f => f.id === activeFilter)
+      console.log('Applying quick filter:', {
+        filterId: activeFilter,
+        filterFound: !!filter,
+        beforeCount: filtered.length
+      })
+      if (filter) {
+        filtered = filtered.filter(filter.filter)
+        console.log('After quick filter:', {
+          afterCount: filtered.length,
+          filterType: filter.label
+        })
+      }
+    }
+
+    // Finally apply view filters if selected
     if (view) {
-      filtered = tickets.filter(ticket => {
+      filtered = filtered.filter(ticket => {
         const { filters } = view
         if (filters.status?.length && !filters.status.includes(ticket.status)) return false
         if (filters.priority?.length && !filters.priority.includes(ticket.priority)) return false
@@ -104,19 +170,6 @@ export default function TicketTable({ tickets, isLoading, teams = [], agents = [
           return ticket.last_response.author_id === ticket.customer?.id
         }
         return true
-      })
-    } else if (activeFilter) {
-      // Apply quick filter if selected
-      const filter = quickFilters.find(f => f.id === activeFilter)
-      if (filter) {
-        filtered = tickets.filter(filter.filter)
-      }
-    } else {
-      // Apply regular filters
-      filtered = tickets.filter(ticket => {
-        const statusMatch = filters.status.length === 0 || filters.status.includes(ticket.status)
-        const priorityMatch = filters.priority.length === 0 || filters.priority.includes(ticket.priority)
-        return statusMatch && priorityMatch
       })
     }
 
