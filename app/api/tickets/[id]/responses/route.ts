@@ -120,21 +120,21 @@ export async function POST(
             },
             transform(chunk, controller) {
               controller.enqueue(chunk);
-                }
+            }
           });
           
           aiResponse.body?.pipeTo(transformStream.writable);
           return new Response(transformStream.readable, {
-              headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive'
-              
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive'
             }
           });
         }
 
         // For non-streaming responses
+        const aiResponseData = await aiResponse.json();
         return NextResponse.json({ 
           humanResponse,
           message: 'Response created successfully' 
@@ -157,7 +157,7 @@ export async function POST(
   } catch (error) {
     console.error('Error processing request:', error);
     return NextResponse.json(
-      { error: error.message },
+      { error: error instanceof Error ? error.message : 'An unexpected error occurred' },
       { status: 500 }
     );
   }

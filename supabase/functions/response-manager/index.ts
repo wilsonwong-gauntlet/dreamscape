@@ -215,6 +215,8 @@ serve(async (req) => {
         // Create encoder for SSE
         const encoder = new TextEncoder();
         
+        let fullResponse = ''; // Track the complete response
+
         // Create response with streaming
         return new Response(
           new ReadableStream({
@@ -232,6 +234,7 @@ serve(async (req) => {
                         : '';
                         
                     if (content) {
+                      fullResponse += content; // Accumulate the response
                       console.log('[Edge] Streaming chunk:', content);
                       controller.enqueue(
                         encoder.encode(`data: ${JSON.stringify({ content })}\n\n`)
@@ -240,6 +243,57 @@ serve(async (req) => {
                   }
                 }
                 
+                // After streaming is complete, save the full response to both tables
+                const { error: responseError } = await supabaseClient
+                  .from('ticket_responses')
+                  .insert({
+                    ticket_id: ticketId,
+                    content: fullResponse,
+                    type: 'ai',
+                    is_internal: false,
+                    metadata: {
+                      knowledge_base: JSON.parse(kbResults),
+                      customer_history: JSON.parse(customerHistory),
+                      conversation_history: conversationHistory
+                    }
+                  });
+
+                if (responseError) {
+                  console.error('[Edge] Error creating response:', responseError);
+                }
+
+                // Save to ticket history
+                const { error: historyError } = await supabaseClient
+                  .from('ticket_history')
+                  .insert({
+                    ticket_id: ticketId,
+                    actor_id: null,
+                    action: 'add_response',
+                    changes: {
+                      content: fullResponse,
+                      type: 'ai',
+                      is_internal: false
+                    }
+                  });
+
+                if (historyError) {
+                  console.error('[Edge] Error creating history entry:', historyError);
+                }
+
+                // Update ticket status
+                const { error: updateError } = await supabaseClient
+                  .from('tickets')
+                  .update({
+                    status: 'open',
+                    ai_response_used: true,
+                    ai_interaction_count: ticket.ai_interaction_count ? ticket.ai_interaction_count + 1 : 1
+                  })
+                  .eq('id', ticketId);
+
+                if (updateError) {
+                  console.error('[Edge] Error updating ticket:', updateError);
+                }
+
                 // Send completed event
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ status: 'complete' })}\n\n`));
               } catch (error) {
@@ -264,59 +318,81 @@ serve(async (req) => {
       } else {
         console.log('[Edge] Starting non-streaming generation');
         const response = await model.invoke(messages);
-        responseContent = response.content;
-      }
+        const responseContent = typeof response.content === 'string' 
+          ? response.content 
+          : Array.isArray(response.content)
+            ? response.content.map(c => typeof c === 'string' ? c : '').join('')
+            : '';
 
-      // Create the response in database
-      const { error: responseError } = await supabaseClient
-        .from('ticket_responses')
-        .insert({
-          ticket_id: ticketId,
-          content: responseContent,
-          type: 'ai',
-          is_internal: false,
-          metadata: {
-            knowledge_base: JSON.parse(kbResults),
-            customer_history: JSON.parse(customerHistory),
-            conversation_history: conversationHistory
-          }
-        });
+        // Create the response in database
+        const { error: responseError } = await supabaseClient
+          .from('ticket_responses')
+          .insert({
+            ticket_id: ticketId,
+            content: responseContent,
+            type: 'ai',
+            is_internal: false,
+            metadata: {
+              knowledge_base: JSON.parse(kbResults),
+              customer_history: JSON.parse(customerHistory),
+              conversation_history: conversationHistory
+            }
+          });
 
-      if (responseError) {
-        console.error('[Edge] Error creating response:', responseError);
-      }
+        if (responseError) {
+          console.error('[Edge] Error creating response:', responseError);
+        }
 
-      // Update ticket
-      const { error: updateError } = await supabaseClient
-        .from('tickets')
-        .update({
-          status: 'open',
-          ai_response_used: true,
-          ai_interaction_count: ticket.ai_interaction_count ? ticket.ai_interaction_count + 1 : 1
-        })
-        .eq('id', ticketId);
+        // Record in ticket history (matching human response pattern)
+        const { error: historyError } = await supabaseClient
+          .from('ticket_history')
+          .insert({
+            ticket_id: ticketId,
+            actor_id: null,
+            action: 'add_response',
+            changes: {
+              content: responseContent,
+              type: 'ai',
+              is_internal: false
+            }
+          });
 
-      if (updateError) {
-        console.error('[Edge] Error updating ticket:', updateError);
-      }
+        if (historyError) {
+          console.error('[Edge] Error creating history entry:', historyError);
+        }
 
-      if (wantsStreaming) {
-        return new Response(stream.readable, {
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive'
-          }
-        });
-      } else {
-        return new Response(
-          JSON.stringify({
-            response: responseContent,
-            status: 'success'
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        // Update ticket
+        const { error: updateError } = await supabaseClient
+          .from('tickets')
+          .update({
+            status: 'open',
+            ai_response_used: true,
+            ai_interaction_count: ticket.ai_interaction_count ? ticket.ai_interaction_count + 1 : 1
+          })
+          .eq('id', ticketId);
+
+        if (updateError) {
+          console.error('[Edge] Error updating ticket:', updateError);
+        }
+
+        if (wantsStreaming) {
+          return new Response(stream.readable, {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive'
+            }
+          });
+        } else {
+          return new Response(
+            JSON.stringify({
+              response: responseContent,
+              status: 'success'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
     } catch (error) {
       console.error('[Edge] Error:', error);

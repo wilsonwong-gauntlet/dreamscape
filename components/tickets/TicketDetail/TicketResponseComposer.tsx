@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
@@ -90,12 +90,43 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
   const abortControllerRef = useRef<AbortController | null>(null)
   const { addOptimisticResponse, updateOptimisticResponse } = useTicketResponses(ticketId)
 
+  const handleStreamMessage = useCallback(async (jsonData: any, humanResponseId: string, aiResponseId: string) => {
+    if (jsonData.humanResponseId) {
+      console.log('[TicketResponseComposer] Received human response ID:', jsonData.humanResponseId)
+      await updateOptimisticResponse(humanResponseId, {
+        ...jsonData.response,
+        id: jsonData.humanResponseId
+      })
+    } else if (jsonData.status === 'started') {
+      console.log('[TicketResponseComposer] AI generation started')
+      setStreamingResponse("")
+    } else if (jsonData.status === 'complete') {
+      console.log('[TicketResponseComposer] AI generation complete')
+      setIsStreaming(false)
+    } else if (jsonData.content) {
+      console.log('[TicketResponseComposer] Received content:', jsonData.content)
+      setStreamingResponse(prev => {
+        const newContent = prev + jsonData.content
+        console.log('[TicketResponseComposer] Updated streaming content:', newContent)
+        return newContent
+      })
+      
+      // Move the optimistic update outside the setState callback
+      await updateOptimisticResponse(aiResponseId, {
+        id: aiResponseId,
+        content: streamingResponse + jsonData.content,
+        type: 'ai',
+        is_internal: false,
+        created_at: new Date().toISOString()
+      })
+    }
+  }, [updateOptimisticResponse, streamingResponse])
+
   useEffect(() => {
-    console.log('[TicketResponseComposer] Mounted with ticket:', ticket)
     if (ticket.customer_id) {
       fetchCustomerData()
     }
-  }, [ticket])
+  }, [ticket.customer_id])
 
   useEffect(() => {
     if (showMacros) {
@@ -216,38 +247,6 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
     }
 
     applyMacroContent(currentMacro, variableValues)
-  }
-
-  const handleStreamMessage = async (jsonData: any, humanResponseId: string, aiResponseId: string) => {
-    if (jsonData.humanResponseId) {
-      console.log('[TicketResponseComposer] Received human response ID:', jsonData.humanResponseId)
-      await updateOptimisticResponse(humanResponseId, {
-        ...jsonData.response,
-        id: jsonData.humanResponseId
-      })
-    } else if (jsonData.status === 'started') {
-      console.log('[TicketResponseComposer] AI generation started')
-      setStreamingResponse("")
-    } else if (jsonData.status === 'complete') {
-      console.log('[TicketResponseComposer] AI generation complete')
-      setIsStreaming(false)
-    } else if (jsonData.content) {
-      console.log('[TicketResponseComposer] Received content:', jsonData.content)
-      setStreamingResponse(prev => {
-        const newContent = prev + jsonData.content
-        console.log('[TicketResponseComposer] Updated streaming content:', newContent)
-        
-        // Update optimistic response
-        updateOptimisticResponse(aiResponseId, {
-          id: aiResponseId,
-          content: newContent,
-          type: 'ai',
-          is_internal: false,
-          created_at: new Date().toISOString()
-        })
-        return newContent
-      })
-    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -665,12 +664,39 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
       </Dialog>
 
       {streamingResponse && (
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-900 mb-2">AI Response Preview:</h3>
-          <div className="prose prose-sm max-w-none">
-            {streamingResponse}
-          </div>
-        </div>
+        <Card className="mt-4 border-indigo-100">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Bot className="h-4 w-4 text-indigo-600" />
+                <span className="font-medium text-sm text-indigo-900">AI Response</span>
+              </div>
+              <Badge 
+                variant="secondary" 
+                className={cn(
+                  "bg-indigo-50 text-indigo-600 border-indigo-100",
+                  isStreaming && "animate-pulse"
+                )}
+              >
+                {isStreaming ? 'Generating...' : 'Complete'}
+              </Badge>
+            </div>
+            <div className="relative">
+              <div className={cn(
+                "prose prose-sm max-w-none",
+                "bg-gradient-to-b from-white to-indigo-50/20",
+                "rounded-lg p-4 border border-indigo-100"
+              )}>
+                {streamingResponse}
+              </div>
+              {isStreaming && (
+                <div className="absolute bottom-2 right-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
