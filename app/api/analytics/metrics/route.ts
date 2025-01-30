@@ -95,38 +95,45 @@ export async function GET(request: Request) {
 
     // Calculate AI assist metrics
     const aiMetrics = tickets?.reduce((acc, ticket) => {
-      if (ticket.ai_suggested_response) {
-        acc.suggestedCount++;
-        if (ticket.ai_response_used) {
-          acc.usedCount++;
-        }
+      // Count tickets where AI response was used
+      if (ticket.ai_response_used) {
+        acc.usedCount++;
+        
+        // Track confidence scores when available
         if (ticket.ai_confidence_score) {
           acc.totalConfidence += ticket.ai_confidence_score;
           acc.confidenceCount++;
         }
-        acc.totalInteractions += ticket.ai_interaction_count || 0;
+        
+        // Track interaction counts
+        if (ticket.ai_interaction_count) {
+          acc.totalInteractions += ticket.ai_interaction_count;
+          acc.interactionCount++;
+        }
       }
       return acc;
     }, {
-      suggestedCount: 0,
       usedCount: 0,
       totalConfidence: 0,
       confidenceCount: 0,
-      totalInteractions: 0
+      totalInteractions: 0,
+      interactionCount: 0
     });
+
+    // Calculate rates and averages
+    const aiAssistRate = totalTickets ? (aiMetrics.usedCount / totalTickets) * 100 : 0;
+    const aiSuccessRate = 100; // Since we're only tracking used responses, success rate is 100%
+    const aiAvgConfidence = aiMetrics.confidenceCount ? (aiMetrics.totalConfidence / aiMetrics.confidenceCount) * 100 : 0; // Convert 0-1 to percentage
+    const aiAvgInteractions = aiMetrics.interactionCount ? aiMetrics.totalInteractions / aiMetrics.interactionCount : 0;
 
     // Debug logging
     console.log('AI Metrics:', {
       totalTickets,
-      suggestedCount: aiMetrics.suggestedCount,
-      aiAssistRate: totalTickets ? (aiMetrics.suggestedCount / totalTickets) * 100 : 0
+      usedCount: aiMetrics.usedCount,
+      aiAssistRate: totalTickets ? (aiMetrics.usedCount / totalTickets) * 100 : 0,
+      avgConfidence: aiMetrics.confidenceCount ? (aiMetrics.totalConfidence / aiMetrics.confidenceCount) * 100 : 0, // Convert 0-1 to percentage
+      avgInteractions: aiMetrics.interactionCount ? aiMetrics.totalInteractions / aiMetrics.interactionCount : 0
     });
-
-    // Calculate rates and averages
-    const aiAssistRate = totalTickets ? (aiMetrics.suggestedCount / totalTickets) * 100 : 0;
-    const aiSuccessRate = aiMetrics.suggestedCount ? (aiMetrics.usedCount / aiMetrics.suggestedCount) * 100 : 0;
-    const aiAvgConfidence = aiMetrics.confidenceCount ? aiMetrics.totalConfidence / aiMetrics.confidenceCount : 0;
-    const aiAvgInteractions = aiMetrics.suggestedCount ? aiMetrics.totalInteractions / aiMetrics.suggestedCount : 0;
 
     return NextResponse.json({
       totalTickets,
@@ -144,7 +151,7 @@ export async function GET(request: Request) {
         successRate: aiSuccessRate,
         avgConfidence: aiAvgConfidence,
         avgInteractions: aiAvgInteractions,
-        totalSuggested: aiMetrics.suggestedCount,
+        totalSuggested: aiMetrics.usedCount, // Now represents total AI responses used
         totalUsed: aiMetrics.usedCount
       }
     })

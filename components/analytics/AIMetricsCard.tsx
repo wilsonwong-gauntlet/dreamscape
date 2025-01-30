@@ -29,6 +29,7 @@ export function AIMetricsCard({ period }: AIMetricsCardProps) {
         const res = await fetch(`/api/analytics/metrics?period=${period}`)
         if (!res.ok) throw new Error('Failed to fetch metrics')
         const data = await res.json()
+        console.log('AI Metrics API Response:', data)
         setMetrics(data.aiMetrics)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error loading metrics')
@@ -76,7 +77,7 @@ export function AIMetricsCard({ period }: AIMetricsCardProps) {
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span>AI Assist Rate</span>
+            <span>AI Usage Rate</span>
             <span>{metrics.assistRate.toFixed(1)}%</span>
           </div>
           <Progress value={metrics.assistRate} className="h-2" />
@@ -84,16 +85,16 @@ export function AIMetricsCard({ period }: AIMetricsCardProps) {
 
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span>AI Success Rate</span>
-            <span>{metrics.successRate.toFixed(1)}%</span>
+            <span>AI Confidence</span>
+            <span>{metrics.avgConfidence.toFixed(1)}%</span>
           </div>
-          <Progress value={metrics.successRate} className="h-2" />
+          <Progress value={metrics.avgConfidence} className="h-2" />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
-            <div className="text-sm font-medium">Confidence Score</div>
-            <div className="text-2xl">{metrics.avgConfidence.toFixed(2)}</div>
+            <div className="text-sm font-medium">Avg. Confidence</div>
+            <div className="text-2xl">{metrics.avgConfidence.toFixed(1)}%</div>
           </div>
           
           <div className="space-y-1">
@@ -104,12 +105,12 @@ export function AIMetricsCard({ period }: AIMetricsCardProps) {
 
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="font-medium">Total Suggested: </span>
-            {metrics.totalSuggested}
+            <span className="font-medium">Total AI Responses: </span>
+            {metrics.totalUsed}
           </div>
           <div>
-            <span className="font-medium">Total Used: </span>
-            {metrics.totalUsed}
+            <span className="font-medium">Total Tickets: </span>
+            {metrics.totalSuggested}
           </div>
         </div>
       </CardContent>
