@@ -54,6 +54,13 @@ const customerHistorySchema = z.object({
   userId: z.string().describe("The ID of the customer to fetch history for")
 });
 
+// Add transaction history schema
+const transactionHistorySchema = z.object({
+  portfolioId: z.string().describe("The ID of the portfolio to fetch transactions for"),
+  limit: z.number().optional().describe("Number of transactions to return (default: 10)"),
+  offset: z.number().optional().describe("Number of transactions to skip (default: 0)")
+});
+
 // Add portfolio lookup schema
 const portfolioLookupSchema = z.object({
   customerId: z.string().describe("The ID of the customer to fetch portfolios for")
@@ -251,6 +258,36 @@ const customerHistoryTool = tool(
   }
 );
 
+const transactionHistoryTool = tool(
+  async (input) => {
+    try {
+      const limit = input.limit || 10;
+      const offset = input.offset || 0;
+
+      const { data: transactions, error } = await supabaseClient
+        .from('portfolio_transactions')
+        .select(`
+          *,
+          holding:holdings(symbol, asset_type)
+        `)
+        .eq('portfolio_id', input.portfolioId)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) throw error;
+
+      return JSON.stringify(transactions || []);
+    } catch (error) {
+      return JSON.stringify({ error: error.message });
+    }
+  },
+  {
+    name: "transaction_history",
+    description: "Fetch detailed transaction history for a portfolio with pagination support.",
+    schema: transactionHistorySchema
+  }
+);
+
 // Initialize model with streaming
 const model = new ChatOpenAI({
   modelName: "gpt-4-turbo-preview",
@@ -261,7 +298,7 @@ const model = new ChatOpenAI({
 // Create the React Agent with the tool-enabled model
 const agent = createReactAgent({
   llm: model,
-  tools: [portfolioLookupTool, portfolioHoldingsTool, kbSearchTool, customerHistoryTool]
+  tools: [portfolioLookupTool, portfolioHoldingsTool, kbSearchTool, customerHistoryTool, transactionHistoryTool]
 });
 
 // Main handler
@@ -357,6 +394,7 @@ serve(async (req) => {
           - Account management
           - Financial planning
           - Risk assessment
+          - Transaction history review
 
           For trading requests:
           1. Detect trading intent in the customer's message (keywords like "buy", "sell", "purchase", "trade")
@@ -372,6 +410,13 @@ serve(async (req) => {
              - For buys, ensure price and quantity are reasonable
           4. Execute the trade using portfolio_holdings tool
           5. Provide clear confirmation or error handling
+
+          For transaction history requests:
+          1. Use transaction_history tool to fetch recent transactions
+          2. Summarize key information:
+             - Recent trading activity
+             - Transaction patterns
+             - Notable changes in portfolio
 
           Trading workflow:
           1. If customer wants to trade:
