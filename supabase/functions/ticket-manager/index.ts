@@ -499,18 +499,16 @@ serve(async (req) => {
       };
     }
 
-    // Determine ticket status based on analysis
-    const newStatus = parsedResponse.analysis.can_auto_resolve && parsedResponse.analysis.confidence > 0.8
-      ? 'resolved'
-      : parsedResponse.analysis.confidence > 0.5
-        ? 'open'
-        : 'pending';
+    // Determine ticket status based on analysis - simplified to just resolved or open
+    const isResolved = parsedResponse.analysis.can_auto_resolve && parsedResponse.analysis.confidence > 0.8;
+    const newStatus = isResolved ? 'resolved' : 'open';
 
     // Update ticket in database with enhanced routing information
     const { error: updateError } = await supabaseClient
       .from('tickets')
       .update({
         status: newStatus,
+        team_id: isResolved ? 'c4b5b62b-df0c-44f7-9fa8-6aad40e7dfcb' : ticket.team_id,
         priority: parsedResponse.analysis.routing_analysis.priority,
         tags: parsedResponse.analysis.routing_analysis.tags,
         ai_confidence_score: parsedResponse.analysis.confidence,
