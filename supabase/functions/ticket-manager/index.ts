@@ -46,6 +46,7 @@ const portfolioOrderSchema = z.object({
   quantity: z.number().describe("Number of shares to buy/sell"),
   price: z.number().describe("Price per share for the order"),
   transactionType: z.enum(["buy", "sell"]).describe("Type of transaction to execute"),
+  assetType: z.enum(["stock", "bond", "etf", "mutual_fund", "crypto", "cash"]).describe("Type of asset being traded"),
   access_token: z.string().describe("Access token for authorization")
 });
 
@@ -53,24 +54,142 @@ const customerHistorySchema = z.object({
   userId: z.string().describe("The ID of the customer to fetch history for")
 });
 
+// Add portfolio lookup schema
+const portfolioLookupSchema = z.object({
+  customerId: z.string().describe("The ID of the customer to fetch portfolios for")
+});
+
 // Create tools using the tool wrapper
+const portfolioLookupTool = tool(
+  async (input) => {
+    try {
+      const { data: portfolios, error } = await supabaseClient
+        .from('portfolios')
+        .select('id, name, description')
+        .eq('customer_id', input.customerId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      return JSON.stringify(portfolios || []);
+    } catch (error) {
+      return JSON.stringify({ error: error.message });
+    }
+  },
+  {
+    name: "portfolio_lookup",
+    description: "Look up a customer's portfolios to get their IDs for trading.",
+    schema: portfolioLookupSchema
+  }
+);
+
 const portfolioHoldingsTool = tool(
   async (input) => {
     try {
-      const response = await fetch(`${Deno.env.get('APP_URL')}/api/portfolio/holdings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${input.access_token}`
-        },
-        body: JSON.stringify(input)
-      });
+      // First get the holding if it exists
+      const { data: holding, error: holdingError } = await supabaseClient
+        .from('holdings')
+        .select('*')
+        .eq('portfolio_id', input.portfolioId)
+        .eq('symbol', input.symbol)
+        .single();
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to process trade order');
+      if (holdingError && holdingError.code !== 'PGRST116') { // PGRST116 is "not found"
+        throw holdingError;
       }
-      return JSON.stringify(result);
+
+      let updatedHolding;
+      if (input.transactionType === 'buy') {
+        if (holding) {
+          // Update existing holding
+          const newQuantity = Number(holding.quantity) + Number(input.quantity);
+          const newAveragePrice = ((Number(holding.quantity) * Number(holding.average_price)) + 
+            (Number(input.quantity) * Number(input.price))) / newQuantity;
+
+          const { data, error } = await supabaseClient
+            .from('holdings')
+            .update({
+              quantity: newQuantity,
+              average_price: newAveragePrice,
+              current_price: input.price,
+              last_price_update: new Date().toISOString()
+            })
+            .eq('id', holding.id)
+            .select()
+            .single();
+
+          if (error) throw error;
+          updatedHolding = data;
+        } else {
+          // Create new holding
+          const { data, error } = await supabaseClient
+            .from('holdings')
+            .insert({
+              portfolio_id: input.portfolioId,
+              symbol: input.symbol,
+              asset_type: input.assetType || 'stock', // Default to stock if not specified
+              quantity: input.quantity,
+              average_price: input.price,
+              current_price: input.price,
+              last_price_update: new Date().toISOString()
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+          updatedHolding = data;
+        }
+      } else if (input.transactionType === 'sell') {
+        if (!holding) {
+          throw new Error('No holding found for this asset');
+        }
+
+        const newQuantity = Number(holding.quantity) - Number(input.quantity);
+        if (newQuantity < 0) {
+          throw new Error('Insufficient quantity to sell');
+        }
+
+        if (newQuantity === 0) {
+          // Remove holding if quantity becomes 0
+          const { error } = await supabaseClient
+            .from('holdings')
+            .delete()
+            .eq('id', holding.id);
+
+          if (error) throw error;
+          updatedHolding = null;
+        } else {
+          // Update holding quantity
+          const { data, error } = await supabaseClient
+            .from('holdings')
+            .update({
+              quantity: newQuantity,
+              current_price: input.price,
+              last_price_update: new Date().toISOString()
+            })
+            .eq('id', holding.id)
+            .select()
+            .single();
+
+          if (error) throw error;
+          updatedHolding = data;
+        }
+      }
+
+      // Record transaction
+      const { error: transactionError } = await supabaseClient
+        .from('portfolio_transactions')
+        .insert({
+          portfolio_id: input.portfolioId,
+          holding_id: updatedHolding?.id,
+          transaction_type: input.transactionType,
+          quantity: input.quantity,
+          price: input.price,
+          total_amount: Number(input.quantity) * Number(input.price)
+        });
+
+      if (transactionError) throw transactionError;
+
+      return JSON.stringify({ success: true, holding: updatedHolding });
     } catch (error) {
       return JSON.stringify({ error: error.message });
     }
@@ -142,7 +261,7 @@ const model = new ChatOpenAI({
 // Create the React Agent with the tool-enabled model
 const agent = createReactAgent({
   llm: model,
-  tools: [portfolioHoldingsTool, kbSearchTool, customerHistoryTool]
+  tools: [portfolioLookupTool, portfolioHoldingsTool, kbSearchTool, customerHistoryTool]
 });
 
 // Main handler
@@ -240,10 +359,32 @@ serve(async (req) => {
           - Risk assessment
 
           For trading requests:
-          1. Validate order details (symbol, quantity, price)
-          2. Check customer history for context using customer_history tool
-          3. Execute trades using portfolio_holdings tool
-          4. Provide clear confirmation or error handling
+          1. Detect trading intent in the customer's message (keywords like "buy", "sell", "purchase", "trade")
+          2. Extract key information:
+             - Action (buy/sell)
+             - Symbol/ticker
+             - Quantity
+             - Price (if specified)
+             - Portfolio (use portfolio_lookup tool if not specified)
+          3. Validate the trade:
+             - Confirm all required information is present
+             - For sells, verify sufficient holdings exist
+             - For buys, ensure price and quantity are reasonable
+          4. Execute the trade using portfolio_holdings tool
+          5. Provide clear confirmation or error handling
+
+          Trading workflow:
+          1. If customer wants to trade:
+             a. Use portfolio_lookup tool to get their portfolio ID
+             b. Extract trade details from message
+             c. Execute trade with portfolio_holdings tool
+             d. Provide confirmation or error message
+          2. If missing information:
+             a. Ask customer for specific missing details
+             b. Explain what information is needed and why
+          3. If validation fails:
+             a. Explain the specific issue
+             b. Provide guidance on how to correct it
 
           For other requests:
           1. Search knowledge base using kb_search tool for relevant information
