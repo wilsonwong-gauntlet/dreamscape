@@ -26,7 +26,7 @@ export default function ClientNav() {
       <div className="flex grow flex-col gap-y-5 overflow-y-auto bg-background px-6 pb-4">
         <div className="flex h-16 shrink-0 items-center">
           <Link href="/portfolio" className="flex items-center space-x-2">
-            <span className="font-bold text-xl">Dreamscape Capital</span>
+            <span className="font-bold text-xl">InvestorSync</span>
           </Link>
         </div>
         <nav className="flex flex-1 flex-col">
