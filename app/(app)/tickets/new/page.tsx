@@ -59,9 +59,10 @@ export default function NewTicketPage() {
         })
       })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to create ticket')
+      const data = await response.json()
+      
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to create ticket')
       }
 
       toast.success('Ticket created successfully')

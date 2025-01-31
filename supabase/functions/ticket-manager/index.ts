@@ -14,6 +14,8 @@ import { ChatOpenAI } from "@langchain/openai"
 import { createReactAgent } from "@langchain/langgraph/prebuilt"
 // @ts-ignore: Deno deploy imports
 import { z } from "zod"
+// @ts-ignore: Deno deploy imports
+import { tavily } from "npm:@tavily/core"
 
 // Add Deno types
 declare const Deno: {
@@ -38,6 +40,17 @@ const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 const openai = new OpenAI({
   apiKey: Deno.env.get('OPENAI_API_KEY')
 });
+
+// Initialize Tavily client
+const tavilyApiKey = Deno.env.get('TAVILY_API_KEY');
+console.log('Tavily API Key present:', !!tavilyApiKey);
+
+if (!tavilyApiKey) {
+  console.error('TAVILY_API_KEY environment variable is not set');
+}
+
+// Initialize Tavily client
+const tvly = tavily({ apiKey: tavilyApiKey || '' });
 
 // Define schemas for tools
 const portfolioOrderSchema = z.object({
@@ -288,6 +301,33 @@ const transactionHistoryTool = tool(
   }
 );
 
+// Add Tavily search tool
+const tavilySearchTool = tool(
+  async (input: string) => {
+    try {
+      if (!tavilyApiKey) {
+        throw new Error('TAVILY_API_KEY environment variable is not set');
+      }
+
+      // Use the official SDK for search
+      const response = await tvly.search(input, {
+        search_depth: "advanced",
+        max_results: 5
+      });
+
+      return JSON.stringify(response.results || []);
+    } catch (error) {
+      console.error('Tavily search error:', error);
+      return JSON.stringify({ error: error.message });
+    }
+  },
+  {
+    name: "tavily_search",
+    description: "Search the web for relevant information about customer inquiries using Tavily's advanced search API.",
+    schema: z.string().describe("The search query to find relevant information")
+  }
+);
+
 // Initialize model with streaming
 const model = new ChatOpenAI({
   modelName: "gpt-4-turbo-preview",
@@ -298,7 +338,7 @@ const model = new ChatOpenAI({
 // Create the React Agent with the tool-enabled model
 const agent = createReactAgent({
   llm: model,
-  tools: [portfolioLookupTool, portfolioHoldingsTool, kbSearchTool, customerHistoryTool, transactionHistoryTool]
+  tools: [portfolioLookupTool, portfolioHoldingsTool, kbSearchTool, customerHistoryTool, transactionHistoryTool, tavilySearchTool]
 });
 
 // Main handler
@@ -396,20 +436,34 @@ serve(async (req) => {
           - Risk assessment
           - Transaction history review
 
+          You have access to several tools:
+          1. Knowledge Base Search (kb_search) - for internal documentation
+          2. Tavily Web Search (tavily_search) - for real-time market data and external information
+          3. Portfolio Tools - for managing trades and transactions
+          4. Customer History - for context about past interactions
+
+          When to use Tavily Search:
+          - For current market conditions and news
+          - For specific company or stock information
+          - For industry trends and analysis
+          - For regulatory updates and compliance information
+          - When internal knowledge base doesn't have sufficient information
+
           For trading requests:
-          1. Detect trading intent in the customer's message (keywords like "buy", "sell", "purchase", "trade")
-          2. Extract key information:
+          1. Use tavily_search to verify current market conditions and stock information
+          2. Detect trading intent in the customer's message (keywords like "buy", "sell", "purchase", "trade")
+          3. Extract key information:
              - Action (buy/sell)
              - Symbol/ticker
              - Quantity
              - Price (if specified)
              - Portfolio (use portfolio_lookup tool if not specified)
-          3. Validate the trade:
+          4. Validate the trade:
              - Confirm all required information is present
              - For sells, verify sufficient holdings exist
              - For buys, ensure price and quantity are reasonable
-          4. Execute the trade using portfolio_holdings tool
-          5. Provide clear confirmation or error handling
+          5. Execute the trade using portfolio_holdings tool
+          6. Provide clear confirmation or error handling
 
           For transaction history requests:
           1. Use transaction_history tool to fetch recent transactions
@@ -432,10 +486,11 @@ serve(async (req) => {
              b. Provide guidance on how to correct it
 
           For other requests:
-          1. Search knowledge base using kb_search tool for relevant information
-          2. Consider customer history and context
-          3. Provide detailed, compliant responses
-          4. Escalate complex cases to appropriate teams
+          1. First search knowledge base using kb_search tool
+          2. If needed, supplement with tavily_search for external information
+          3. Consider customer history and context
+          4. Provide detailed, compliant responses
+          5. Escalate complex cases to appropriate teams
 
           Always:
           - Maintain professional tone and regulatory compliance
@@ -443,6 +498,7 @@ serve(async (req) => {
           - Include relevant disclaimers for financial advice
           - Format responses clearly for client communication
           - Handle errors gracefully with clear explanations
+          - Cross-reference internal and external information for accuracy
 
           After using any tools, evaluate:
           - How directly the tool results answer the question (0-1)
@@ -516,10 +572,41 @@ serve(async (req) => {
       }
 
       // Clean the content (remove code block markers if present)
-      const content = lastMessage.content.replace(/^```json\n/, '').replace(/\n```$/, '');
+      let content = lastMessage.content.replace(/^```json\n/, '').replace(/\n```$/, '');
       
-      // Parse the JSON
-      parsedResponse = JSON.parse(content);
+      // Try to find JSON content if the response is a mix of text and JSON
+      const jsonMatch = content.match(/({[\s\S]*})/);
+      if (jsonMatch) {
+        content = jsonMatch[1];
+      }
+      
+      try {
+        // Try to parse as JSON first
+        parsedResponse = JSON.parse(content);
+      } catch (jsonError) {
+        console.warn('Failed to parse as JSON, converting text response to JSON format:', content);
+        // If not valid JSON, wrap the text response in our expected format
+        parsedResponse = {
+          response: content,
+          analysis: {
+            can_auto_resolve: false,
+            confidence: 0.5,
+            tool_evaluation: {
+              relevance: 0.5,
+              reliability: 0.5,
+              needs_human_review: true,
+              needs_clarification: false
+            },
+            routing_analysis: {
+              priority: 'medium',
+              category: 'general',
+              tags: ['non_json_response'],
+              complexity: 'medium',
+              expertise: []
+            }
+          }
+        };
+      }
 
       // Validate the parsed response structure
       if (!parsedResponse.response || !parsedResponse.analysis) {
@@ -529,14 +616,20 @@ serve(async (req) => {
       console.warn('Failed to parse AI response:', e);
       console.warn('Last message content:', result.messages[result.messages.length - 1]?.content);
       parsedResponse = {
-        response: "Failed to generate response",
+        response: result.messages[result.messages.length - 1]?.content || "Failed to generate response",
         analysis: {
           can_auto_resolve: false,
           confidence: 0.0,
+          tool_evaluation: {
+            relevance: 0.0,
+            reliability: 0.0,
+            needs_human_review: true,
+            needs_clarification: true
+          },
           routing_analysis: {
             priority: 'medium',
             category: 'general',
-            tags: [],
+            tags: ['parsing_error'],
             complexity: 'medium',
             expertise: []
           }
