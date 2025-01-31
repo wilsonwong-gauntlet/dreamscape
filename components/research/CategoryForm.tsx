@@ -49,7 +49,7 @@ export function CategoryForm({
     setIsLoading(true)
 
     try {
-      const endpoint = initialData
+      const endpoint = initialData?.id
         ? `/api/research/categories/${initialData.id}`
         : '/api/research/categories'
 
