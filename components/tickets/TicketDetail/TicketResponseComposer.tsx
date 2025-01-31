@@ -444,22 +444,6 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
 
   return (
     <div className="space-y-4">
-      {/* Quick Actions */}
-      <div className="flex items-center gap-2 pb-2 overflow-x-auto">
-        <span className="text-sm font-medium text-muted-foreground shrink-0">Quick Actions:</span>
-        {quickActions.map(action => (
-          <Button
-            key={action.id}
-            variant="outline"
-            size="sm"
-            className="shrink-0 border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-            onClick={() => setContent(action.text)}
-          >
-            {action.id.charAt(0).toUpperCase() + action.id.slice(1)}
-          </Button>
-        ))}
-      </div>
-
       {/* Main Composer */}
       <div className="relative">
         <div className={cn(
@@ -481,31 +465,6 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
             )}
             disabled={isSubmitting}
           />
-          <div className="absolute right-2 top-2 flex flex-col gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={generateAIResponse}
-                    disabled={isGenerating}
-                    className={cn(
-                      "h-8 w-8 transition-colors",
-                      isGenerating && "bg-indigo-50 text-indigo-600"
-                    )}
-                  >
-                    {isGenerating ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Bot className="h-4 w-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Generate AI response</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
         </div>
       </div>
 
@@ -528,14 +487,6 @@ export default function TicketResponseComposer({ ticketId, ticket, onResponseAdd
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => setShowMacros(true)}
-            className="border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            Macros
-          </Button>
           <Button 
             onClick={handleSubmit} 
             disabled={!content.trim() || isSubmitting}
